@@ -1,5 +1,7 @@
 "use client";
 
+import WelcomeGuide from "./components/WelcomeGuide";
+
 import {
   useEffect,
   useMemo,
@@ -1520,6 +1522,12 @@ export default function Dashboard({
               </div>
 
             </div>
+
+            {/* =================================================
+                FIRST-TIME USER GUIDE
+            ================================================= */}
+
+            <WelcomeGuide />
 
             <section className="stats-grid">
 
