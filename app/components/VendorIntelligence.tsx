@@ -2,9 +2,7 @@
 
 import {
   Building2,
-  CalendarDays,
   Layers3,
-  Receipt,
   TrendingUp,
 } from "lucide-react";
 
@@ -19,32 +17,58 @@ type Props = {
 };
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat(
+    "en-IN",
+    {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }
+  ).format(value);
 }
 
-function formatDate(date: string) {
-  if (!date) return "—";
+function formatDate(
+  date: string
+) {
+  if (!date) {
+    return "—";
+  }
 
-  return new Date(
-    `${date}T00:00:00`
-  ).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const parsed =
+    new Date(
+      `${date}T00:00:00`
+    );
+
+  if (
+    Number.isNaN(
+      parsed.getTime()
+    )
+  ) {
+    return "—";
+  }
+
+  return parsed.toLocaleDateString(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  );
 }
 
 export default function VendorIntelligence({
   expenses,
 }: Props) {
-  const vendors = analyzeVendors(expenses);
+  const vendors =
+    analyzeVendors(
+      expenses
+    );
 
   const concentration =
-    calculateVendorConcentration(vendors);
+    calculateVendorConcentration(
+      vendors
+    );
 
   if (!vendors.length) {
     return (
@@ -55,10 +79,12 @@ export default function VendorIntelligence({
               VENDOR INTELLIGENCE
             </div>
 
-            <h2>Vendor intelligence</h2>
+            <h2>
+              Vendor intelligence
+            </h2>
 
             <p>
-              PennyPilot will build vendor profiles as
+              PennyPilot builds vendor profiles as
               transactions are recorded.
             </p>
           </div>
@@ -87,11 +113,13 @@ export default function VendorIntelligence({
             VENDOR INTELLIGENCE
           </div>
 
-          <h2>Vendor intelligence</h2>
+          <h2>
+            Vendor intelligence
+          </h2>
 
           <p>
-            Understand where your business money is
-            going and how concentrated your spending is.
+            Understand where recorded business spending
+            is concentrated.
           </p>
         </div>
 
@@ -102,19 +130,30 @@ export default function VendorIntelligence({
 
       <div className="vendor-summary">
         <div>
-          <span>Vendors</span>
-          <strong>{vendors.length}</strong>
+          <span>
+            Vendors
+          </span>
+
+          <strong>
+            {vendors.length}
+          </strong>
         </div>
 
         <div>
-          <span>Top vendor share</span>
+          <span>
+            Top vendor share
+          </span>
+
           <strong>
             {concentration.topVendorShare}%
           </strong>
         </div>
 
         <div>
-          <span>Top 3 share</span>
+          <span>
+            Top 3 share
+          </span>
+
           <strong>
             {concentration.topThreeShare}%
           </strong>
@@ -122,80 +161,121 @@ export default function VendorIntelligence({
       </div>
 
       <div className="vendor-list">
-        {vendors.slice(0, 8).map((vendor, index) => (
-          <div
-            className="vendor-row"
-            key={vendor.vendor}
-          >
-            <div className="vendor-rank">
-              {String(index + 1).padStart(2, "0")}
-            </div>
-
-            <div className="vendor-main">
-              <div className="vendor-name">
-                {vendor.vendor}
-              </div>
-
-              <div className="vendor-meta">
-                {vendor.dominantCategory}
-                {" · "}
-                {vendor.transactionCount}{" "}
-                {vendor.transactionCount === 1
-                  ? "transaction"
-                  : "transactions"}
-              </div>
-            </div>
-
-            <div className="vendor-stats">
-              <div className="vendor-stat">
-                <span>Total spend</span>
-                <strong>
-                  {money(vendor.totalSpend)}
-                </strong>
-              </div>
-
-              <div className="vendor-stat">
-                <span>Average</span>
-                <strong>
-                  {money(
-                    vendor.averageTransaction
+        {vendors
+          .slice(0, 8)
+          .map(
+            (
+              vendor,
+              index
+            ) => (
+              <div
+                className="vendor-row"
+                key={vendor.vendor}
+              >
+                <div className="vendor-rank">
+                  {String(
+                    index + 1
+                  ).padStart(
+                    2,
+                    "0"
                   )}
-                </strong>
-              </div>
+                </div>
 
-              <div className="vendor-stat">
-                <span>Share</span>
-                <strong>
-                  {vendor.spendingShare}%
-                </strong>
-              </div>
+                <div className="vendor-main">
+                  <div className="vendor-name">
+                    {vendor.vendor}
+                  </div>
 
-              <div className="vendor-stat vendor-last">
-                <span>Last transaction</span>
-                <strong>
-                  {formatDate(vendor.latestDate)}
-                </strong>
-              </div>
-            </div>
+                  <div className="vendor-meta">
+                    {
+                      vendor.dominantCategory
+                    }
+                    {" · "}
+                    {
+                      vendor.transactionCount
+                    }{" "}
+                    {vendor.transactionCount ===
+                    1
+                      ? "transaction"
+                      : "transactions"}
+                  </div>
+                </div>
 
-            <div className="vendor-chevron">
-              <TrendingUp size={15} />
-            </div>
-          </div>
-        ))}
+                <div className="vendor-stats">
+                  <div className="vendor-stat">
+                    <span>
+                      Total spend
+                    </span>
+
+                    <strong>
+                      {money(
+                        vendor.totalSpend
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="vendor-stat">
+                    <span>
+                      Average
+                    </span>
+
+                    <strong>
+                      {money(
+                        vendor.averageTransaction
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="vendor-stat">
+                    <span>
+                      Share
+                    </span>
+
+                    <strong>
+                      {
+                        vendor.spendingShare
+                      }
+                      %
+                    </strong>
+                  </div>
+
+                  <div className="vendor-stat vendor-last">
+                    <span>
+                      Last transaction
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        vendor.latestDate
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="vendor-chevron">
+                  <TrendingUp size={15} />
+                </div>
+              </div>
+            )
+          )}
       </div>
 
-      {vendors.some(
-        (vendor) => vendor.isHighConcentration
-      ) && (
+      {concentration.concentratedVendors >
+        0 && (
         <div className="vendor-concentration">
           <Layers3 size={16} />
 
           <span>
-            One or more vendors account for a
-            significant share of recorded spending.
-            PennyPilot can use this concentration signal
-            when generating financial insights.
+            {concentration.concentratedVendors ===
+            1
+              ? "One vendor"
+              : `${concentration.concentratedVendors} vendors`}{" "}
+            account
+            {concentration.concentratedVendors ===
+            1
+              ? "s"
+              : ""}{" "}
+            for at least 25% of recorded spending.
           </span>
         </div>
       )}

@@ -1,5 +1,5 @@
 export type CashFlowExpense = {
-  amount: number;
+  amount: number | string;
   expense_date: string;
 };
 
@@ -7,20 +7,40 @@ export type CashFlowForecast = {
   currentSpend: number;
   dailyBurn: number;
   projectedMonthEnd: number;
+
   budget: number;
   remainingBudget: number;
   budgetUtilization: number;
   projectedOverrun: number;
+
   daysUntilBudgetExhaustion: number | null;
+
   projected30DayOutflow: number;
+
   daysElapsed: number;
   daysInMonth: number;
+
+  transactionCount: number;
+
   forecastStatus:
     | "healthy"
     | "watch"
     | "over-budget"
+    | "no-budget"
     | "insufficient-data";
 };
+
+function round(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function parseDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date;
+}
 
 function startOfMonth(date: Date) {
   return new Date(
@@ -38,10 +58,15 @@ function endOfMonth(date: Date) {
   );
 }
 
-function sameMonth(date: Date, reference: Date) {
+function isSameMonth(
+  date: Date,
+  reference: Date
+) {
   return (
-    date.getFullYear() === reference.getFullYear() &&
-    date.getMonth() === reference.getMonth()
+    date.getFullYear() ===
+      reference.getFullYear() &&
+    date.getMonth() ===
+      reference.getMonth()
   );
 }
 
@@ -50,10 +75,14 @@ export function calculateCashFlowForecast(
   budget: number,
   referenceDate = new Date()
 ): CashFlowForecast {
-  const monthStart = startOfMonth(referenceDate);
-  const monthEnd = endOfMonth(referenceDate);
+  const monthStart =
+    startOfMonth(referenceDate);
 
-  const daysInMonth = monthEnd.getDate();
+  const monthEnd =
+    endOfMonth(referenceDate);
+
+  const daysInMonth =
+    monthEnd.getDate();
 
   const daysElapsed = Math.max(
     1,
@@ -63,51 +92,129 @@ export function calculateCashFlowForecast(
     )
   );
 
-  const monthExpenses = expenses.filter((expense) => {
-    const date = new Date(
-      `${expense.expense_date}T00:00:00`
+  /*
+   * Only count valid, non-negative,
+   * current-month transactions.
+   *
+   * Future-dated transactions are deliberately
+   * excluded from current spending velocity.
+   */
+  const monthExpenses =
+    expenses.filter((expense) => {
+      const date = parseDate(
+        expense.expense_date
+      );
+
+      if (!date) return false;
+
+      if (date < monthStart) {
+        return false;
+      }
+
+      if (date > referenceDate) {
+        return false;
+      }
+
+      return isSameMonth(
+        date,
+        referenceDate
+      );
+    });
+
+  const currentSpend =
+    monthExpenses.reduce(
+      (sum, expense) => {
+        const amount =
+          Number(expense.amount);
+
+        if (
+          !Number.isFinite(amount) ||
+          amount < 0
+        ) {
+          return sum;
+        }
+
+        return sum + amount;
+      },
+      0
     );
 
-    return sameMonth(date, referenceDate);
-  });
+  const safeBudget =
+    Number.isFinite(budget) &&
+    budget > 0
+      ? budget
+      : 0;
 
-  const currentSpend = monthExpenses.reduce(
-    (sum, expense) => sum + Number(expense.amount),
-    0
-  );
+  /*
+   * No transactions means we cannot establish
+   * a spending velocity.
+   */
+  if (currentSpend <= 0) {
+    return {
+      currentSpend: 0,
+      dailyBurn: 0,
+      projectedMonthEnd: 0,
 
-  const dailyBurn = currentSpend / daysElapsed;
+      budget: safeBudget,
+      remainingBudget: safeBudget,
+      budgetUtilization: 0,
+      projectedOverrun: 0,
+
+      daysUntilBudgetExhaustion: null,
+
+      projected30DayOutflow: 0,
+
+      daysElapsed,
+      daysInMonth,
+
+      transactionCount:
+        monthExpenses.length,
+
+      forecastStatus:
+        "insufficient-data",
+    };
+  }
+
+  const dailyBurn =
+    currentSpend / daysElapsed;
 
   const projectedMonthEnd =
     dailyBurn * daysInMonth;
 
-  const remainingBudget = Math.max(
-    0,
-    budget - currentSpend
-  );
+  const remainingBudget =
+    Math.max(
+      0,
+      safeBudget - currentSpend
+    );
 
   const budgetUtilization =
-    budget > 0
-      ? (currentSpend / budget) * 100
+    safeBudget > 0
+      ? (currentSpend / safeBudget) *
+        100
       : 0;
 
-  const projectedOverrun = Math.max(
-    0,
-    projectedMonthEnd - budget
-  );
+  const projectedOverrun =
+    safeBudget > 0
+      ? Math.max(
+          0,
+          projectedMonthEnd -
+            safeBudget
+        )
+      : 0;
 
   let daysUntilBudgetExhaustion:
     | number
     | null = null;
 
-  if (dailyBurn > 0 && budget > currentSpend) {
-    daysUntilBudgetExhaustion =
-      Math.ceil(remainingBudget / dailyBurn);
-  } else if (
-    dailyBurn > 0 &&
-    currentSpend >= budget
-  ) {
-    daysUntilBudgetExhaustion = 0;
+  if (safeBudget > 0) {
+    if (currentSpend >= safeBudget) {
+      daysUntilBudgetExhaustion = 0;
+    } else if (dailyBurn > 0) {
+      daysUntilBudgetExhaustion =
+        Math.ceil(
+          remainingBudget / dailyBurn
+        );
+    }
   }
 
   const projected30DayOutflow =
@@ -117,15 +224,19 @@ export function calculateCashFlowForecast(
     | "healthy"
     | "watch"
     | "over-budget"
+    | "no-budget"
     | "insufficient-data";
 
-  if (currentSpend === 0) {
-    forecastStatus = "insufficient-data";
-  } else if (budget > 0 && projectedMonthEnd > budget) {
+  if (safeBudget <= 0) {
+    forecastStatus = "no-budget";
+  } else if (
+    projectedMonthEnd >
+    safeBudget
+  ) {
     forecastStatus = "over-budget";
   } else if (
-    budget > 0 &&
-    projectedMonthEnd >= budget * 0.85
+    projectedMonthEnd >=
+    safeBudget * 0.85
   ) {
     forecastStatus = "watch";
   } else {
@@ -133,17 +244,46 @@ export function calculateCashFlowForecast(
   }
 
   return {
-    currentSpend,
-    dailyBurn,
-    projectedMonthEnd,
-    budget,
-    remainingBudget,
-    budgetUtilization,
-    projectedOverrun,
+    currentSpend: round(
+      currentSpend
+    ),
+
+    dailyBurn: round(
+      dailyBurn
+    ),
+
+    projectedMonthEnd: round(
+      projectedMonthEnd
+    ),
+
+    budget: round(
+      safeBudget
+    ),
+
+    remainingBudget: round(
+      remainingBudget
+    ),
+
+    budgetUtilization: round(
+      budgetUtilization
+    ),
+
+    projectedOverrun: round(
+      projectedOverrun
+    ),
+
     daysUntilBudgetExhaustion,
-    projected30DayOutflow,
+
+    projected30DayOutflow: round(
+      projected30DayOutflow
+    ),
+
     daysElapsed,
     daysInMonth,
+
+    transactionCount:
+      monthExpenses.length,
+
     forecastStatus,
   };
 }

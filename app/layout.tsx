@@ -23,8 +23,8 @@ export const metadata: Metadata = {
   generator: "PennyPilot",
   icons: {
     icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
   },
 };
 

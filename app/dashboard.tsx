@@ -1,6 +1,7 @@
 "use client";
 
 import WelcomeGuide from "./components/WelcomeGuide";
+import RecurringExpenses from "@/app/components/RecurringExpenses";
 
 import {
   useEffect,
@@ -29,6 +30,8 @@ import {
   Zap,
   Pencil,
   Trash2,
+  Activity,
+  CalendarClock,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -44,6 +47,24 @@ import CategoryBreakdown from "./components/CategoryBreakdown";
 import Copilot from "./components/Copilot";
 
 import { exportExpensesCsv } from "@/lib/csvExport";
+
+import {
+  calculateSpendingVelocity,
+  detectRecurringExpenses,
+} from "@/lib/financialEngine";
+
+import type {
+  FinancialExpense,
+} from "@/lib/financialEngine";
+
+import {
+  calculateCashFlowForecast,
+} from "@/lib/cashFlowEngine";
+
+import {
+  analyzeVendors,
+  calculateVendorConcentration,
+} from "@/lib/vendorEngine";
 
 /* =========================================================
    TYPES
@@ -69,6 +90,13 @@ type Business = {
 };
 
 type Theme = "dark" | "light";
+
+type Insight = {
+  icon: string;
+  title: string;
+  text: string;
+  type: "good" | "warning" | "info";
+};
 
 /* =========================================================
    CONSTANTS
@@ -101,7 +129,9 @@ const money = (value: number) =>
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(Number.isFinite(value) ? value : 0);
+  }).format(
+    Number.isFinite(value) ? value : 0
+  );
 
 const today = () =>
   new Date().toISOString().split("T")[0];
@@ -118,6 +148,18 @@ const monthStart = () => {
     .split("T")[0];
 };
 
+const monthEnd = () => {
+  const date = new Date();
+
+  return new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  )
+    .toISOString()
+    .split("T")[0];
+};
+
 const monthLabel = () =>
   new Intl.DateTimeFormat("en-IN", {
     month: "long",
@@ -128,7 +170,10 @@ const normalizeVendor = (vendor: string) =>
   vendor
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+    .replace(
+      /^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g,
+      ""
+    );
 
 const emptyExpenseForm = (): ExpenseForm => ({
   amount: "",
@@ -138,6 +183,36 @@ const emptyExpenseForm = (): ExpenseForm => ({
   date: today(),
   notes: "",
 });
+
+const toFinancialExpenses = (
+  expenses: Expense[]
+): FinancialExpense[] =>
+  expenses.map((expense) => ({
+    id: expense.id,
+    amount: expense.amount,
+    category: expense.category,
+    vendor: expense.vendor,
+    payment_method:
+      expense.payment_method,
+    expense_date:
+      expense.expense_date,
+    notes: expense.notes,
+  }));
+
+const formatPercent = (
+  value: number | null
+) => {
+  if (
+    value === null ||
+    !Number.isFinite(value)
+  ) {
+    return "—";
+  }
+
+  const rounded = Math.round(value);
+
+  return `${rounded > 0 ? "+" : ""}${rounded}%`;
+};
 
 /* =========================================================
    DASHBOARD
@@ -328,18 +403,36 @@ export default function Dashboard({
   }, [session.user.id]);
 
   /* =========================================================
-     MONTHLY DATA
+     FINANCIAL DATA
   ========================================================= */
+
+  const financialExpenses =
+    useMemo(
+      () =>
+        toFinancialExpenses(
+          expenses
+        ),
+      [expenses]
+    );
 
   const currentMonthExpenses =
     useMemo(() => {
       const start =
         monthStart();
 
+      const end =
+        monthEnd();
+
       return expenses.filter(
         (expense) =>
           expense.expense_date >=
-          start
+            start &&
+          expense.expense_date <=
+            end &&
+          new Date(
+            `${expense.expense_date}T00:00:00`
+          ).getTime() <=
+            Date.now()
       );
     }, [expenses]);
 
@@ -376,6 +469,59 @@ export default function Dashboard({
       business?.monthly_budget
     ) || 0;
 
+  /* =========================================================
+     SPENDING VELOCITY
+  ========================================================= */
+
+  const spendingVelocity =
+    useMemo(
+      () =>
+        calculateSpendingVelocity(
+          financialExpenses,
+          new Date()
+        ),
+      [financialExpenses]
+    );
+
+  const dailySpend =
+    spendingVelocity.dayOfMonth >
+    0
+      ? spendingVelocity.currentTotal /
+        spendingVelocity.dayOfMonth
+      : 0;
+
+  const projectedMonthlySpend =
+    spendingVelocity.projectedMonthlySpend;
+
+  const velocityChange =
+    spendingVelocity.changePercent;
+
+  /* =========================================================
+     CASH FLOW FORECAST
+  ========================================================= */
+
+  const cashFlowForecast =
+    useMemo(
+      () =>
+        calculateCashFlowForecast(
+          financialExpenses,
+          budget,
+          new Date()
+        ),
+      [
+        financialExpenses,
+        budget,
+      ]
+    );
+
+  const daysUntilBudgetExhaustion =
+    cashFlowForecast
+      .daysUntilBudgetExhaustion;
+
+  /* =========================================================
+     BUDGET
+  ========================================================= */
+
   const budgetPercentage =
     budget > 0
       ? Math.round(
@@ -386,31 +532,20 @@ export default function Dashboard({
       : 0;
 
   const budgetRemaining =
-    Math.max(
-      budget - monthlyTotal,
-      0
-    );
+    budget > 0
+      ? Math.max(
+          budget - monthlyTotal,
+          0
+        )
+      : 0;
 
-  const daysPassed =
-    Math.max(
-      new Date().getDate(),
-      1
-    );
-
-  const dailySpend =
-    monthlyTotal /
-    daysPassed;
-
-  const daysInMonth =
-    new Date(
-      new Date().getFullYear(),
-      new Date().getMonth() + 1,
-      0
-    ).getDate();
-
-  const projectedMonthlySpend =
-    dailySpend *
-    daysInMonth;
+  const budgetOverrun =
+    budget > 0
+      ? Math.max(
+          monthlyTotal - budget,
+          0
+        )
+      : 0;
 
   /* =========================================================
      CATEGORY INTELLIGENCE
@@ -423,12 +558,13 @@ export default function Dashboard({
           result,
           expense
         ) => {
-          result[
-            expense.category
-          ] =
-            (result[
-              expense.category
-            ] || 0) +
+          const category =
+            expense.category ||
+            "Uncategorized";
+
+          result[category] =
+            (result[category] ||
+              0) +
             Number(
               expense.amount
             );
@@ -455,6 +591,24 @@ export default function Dashboard({
   /* =========================================================
      VENDOR INTELLIGENCE
   ========================================================= */
+
+  const vendorInsights =
+    useMemo(
+      () =>
+        analyzeVendors(
+          currentMonthExpenses
+        ),
+      [currentMonthExpenses]
+    );
+
+  const vendorConcentration =
+    useMemo(
+      () =>
+        calculateVendorConcentration(
+          vendorInsights
+        ),
+      [vendorInsights]
+    );
 
   const vendorTotals =
     useMemo(() => {
@@ -503,7 +657,64 @@ export default function Dashboard({
     sortedVendors[0];
 
   /* =========================================================
-     ANOMALIES
+     RECURRING INTELLIGENCE
+  ========================================================= */
+
+  const recurringExpenses =
+    useMemo(
+      () =>
+        detectRecurringExpenses(
+          financialExpenses
+        ),
+      [financialExpenses]
+    );
+
+  const recurringMonthlyCommitment =
+    useMemo(
+      () =>
+        recurringExpenses.reduce(
+          (sum, recurring) => {
+            if (
+              recurring.frequency ===
+              "Monthly"
+            ) {
+              return (
+                sum +
+                recurring.averageAmount
+              );
+            }
+
+            if (
+              recurring.frequency ===
+              "Weekly"
+            ) {
+              return (
+                sum +
+                recurring.averageAmount *
+                  4.33
+              );
+            }
+
+            if (
+              recurring.frequency ===
+              "Quarterly"
+            ) {
+              return (
+                sum +
+                recurring.averageAmount /
+                  3
+              );
+            }
+
+            return sum;
+          },
+          0
+        ),
+      [recurringExpenses]
+    );
+
+  /* =========================================================
+     WATCHTOWER
   ========================================================= */
 
   const anomalyCount =
@@ -521,15 +732,7 @@ export default function Dashboard({
 
   const insights = useMemo(
     () => {
-      const list: {
-        icon: string;
-        title: string;
-        text: string;
-        type:
-          | "good"
-          | "warning"
-          | "info";
-      }[] = [];
+      const list: Insight[] = [];
 
       if (
         expenses.length === 0
@@ -541,11 +744,14 @@ export default function Dashboard({
               "Start building your baseline",
             text:
               "Add real transactions and PennyPilot will begin learning your spending patterns.",
-            type: "info" as const,
+            type: "info",
           },
         ];
       }
 
+      /*
+       * Budget signal.
+       */
       if (!budget) {
         list.push({
           icon: "◷",
@@ -556,20 +762,22 @@ export default function Dashboard({
           type: "info",
         });
       } else if (
-        budgetPercentage >=
-        100
+        cashFlowForecast.forecastStatus ===
+        "over-budget"
       ) {
         list.push({
           icon: "⚠",
           title:
             "Budget limit reached",
           text:
-            `Recorded spending has reached ${budgetPercentage}% of your monthly limit.`,
+            `${money(
+              budgetOverrun
+            )} is currently above your monthly limit.`,
           type: "warning",
         });
       } else if (
-        budgetPercentage >=
-        80
+        cashFlowForecast.forecastStatus ===
+        "watch"
       ) {
         list.push({
           icon: "⚠",
@@ -581,7 +789,10 @@ export default function Dashboard({
             )} remains.`,
           type: "warning",
         });
-      } else {
+      } else if (
+        cashFlowForecast.forecastStatus ===
+        "healthy"
+      ) {
         list.push({
           icon: "✓",
           title:
@@ -594,6 +805,44 @@ export default function Dashboard({
         });
       }
 
+      /*
+       * Velocity comparison.
+       */
+      if (
+        velocityChange !== null &&
+        spendingVelocity.previousTotal >
+          0
+      ) {
+        const direction =
+          velocityChange > 0
+            ? "higher"
+            : velocityChange < 0
+              ? "lower"
+              : "about the same";
+
+        list.push({
+          icon:
+            velocityChange > 0
+              ? "↗"
+              : velocityChange < 0
+                ? "↘"
+                : "→",
+          title:
+            `Spending is ${direction} than last month`,
+          text:
+            `${formatPercent(
+              velocityChange
+            )} compared with the previous month.`,
+          type:
+            velocityChange > 0
+              ? "warning"
+              : "good",
+        });
+      }
+
+      /*
+       * Top category.
+       */
       if (topCategory) {
         const share =
           monthlyTotal > 0
@@ -616,7 +865,14 @@ export default function Dashboard({
         });
       }
 
-      if (topVendor) {
+      /*
+       * Vendor concentration.
+       */
+      if (
+        topVendor &&
+        vendorConcentration.topVendorShare >
+          0
+      ) {
         list.push({
           icon: "◆",
           title:
@@ -624,11 +880,18 @@ export default function Dashboard({
           text:
             `${money(
               topVendor[1]
-            )} recorded this month.`,
-          type: "info",
+            )} · ${vendorConcentration.topVendorShare}% of monthly spend.`,
+          type:
+            vendorConcentration.topVendorShare >=
+            50
+              ? "warning"
+              : "info",
         });
       }
 
+      /*
+       * Projected month-end.
+       */
       if (
         budget > 0 &&
         projectedMonthlySpend >
@@ -639,13 +902,66 @@ export default function Dashboard({
           title:
             "Current spending pace is high",
           text:
-            `At the current pace, spending could reach approximately ${money(
+            `The current pace projects approximately ${money(
               projectedMonthlySpend
-            )}.`,
+            )} by month-end.`,
           type: "warning",
         });
       }
 
+      /*
+       * Budget exhaustion.
+       */
+      if (
+        budget > 0 &&
+        daysUntilBudgetExhaustion !==
+          null &&
+        daysUntilBudgetExhaustion >
+          0 &&
+        cashFlowForecast.forecastStatus !==
+          "over-budget"
+      ) {
+        list.push({
+          icon: "◷",
+          title:
+            "Budget exhaustion estimate",
+          text:
+            `At the current burn rate, the remaining budget could last about ${daysUntilBudgetExhaustion} more day${
+              daysUntilBudgetExhaustion ===
+              1
+                ? ""
+                : "s"
+            }.`,
+          type:
+            daysUntilBudgetExhaustion <=
+            7
+              ? "warning"
+              : "info",
+        });
+      }
+
+      /*
+       * Recurring commitment.
+       */
+      if (
+        recurringMonthlyCommitment >
+          0
+      ) {
+        list.push({
+          icon: "↻",
+          title:
+            "Recurring commitments detected",
+          text:
+            `Known recurring costs represent roughly ${money(
+              recurringMonthlyCommitment
+            )} per month.`,
+          type: "info",
+        });
+      }
+
+      /*
+       * Watchtower.
+       */
       if (
         anomalyCount >
         0
@@ -659,7 +975,7 @@ export default function Dashboard({
                 : "s"
             } detected`,
           text:
-            "Watchtower found spending outside your normal category patterns.",
+            "Watchtower found spending outside established category patterns.",
           type: "warning",
         });
       }
@@ -672,12 +988,19 @@ export default function Dashboard({
     [
       expenses.length,
       budget,
+      budgetOverrun,
       budgetPercentage,
       budgetRemaining,
+      cashFlowForecast,
+      velocityChange,
+      spendingVelocity,
       topCategory,
       topVendor,
+      vendorConcentration,
       monthlyTotal,
       projectedMonthlySpend,
+      daysUntilBudgetExhaustion,
+      recurringMonthlyCommitment,
       anomalyCount,
     ]
   );
@@ -746,9 +1069,7 @@ export default function Dashboard({
 
   const openNewExpense = () => {
     setEditingExpense(null);
-    setScannerForm(
-      null
-    );
+    setScannerForm(null);
     setActionError("");
     setShowExpense(true);
   };
@@ -833,17 +1154,13 @@ export default function Dashboard({
         );
       }
 
-      if (
-        !form.category
-      ) {
+      if (!form.category) {
         throw new Error(
           "Select a category."
         );
       }
 
-      if (
-        !form.method
-      ) {
+      if (!form.method) {
         throw new Error(
           "Select a payment method."
         );
@@ -852,6 +1169,16 @@ export default function Dashboard({
       if (!form.date) {
         throw new Error(
           "Select an expense date."
+        );
+      }
+
+      if (
+        !isValidDate(
+          form.date
+        )
+      ) {
+        throw new Error(
+          "Enter a valid expense date."
         );
       }
 
@@ -956,17 +1283,9 @@ export default function Dashboard({
         }
       }
 
-      setShowExpense(
-        false
-      );
-
-      setEditingExpense(
-        null
-      );
-
-      setScannerForm(
-        null
-      );
+      setShowExpense(false);
+      setEditingExpense(null);
+      setScannerForm(null);
 
       await loadData();
     } catch (error: any) {
@@ -1106,9 +1425,7 @@ export default function Dashboard({
             value,
         });
 
-        setShowBudget(
-          false
-        );
+        setShowBudget(false);
       } catch (error: any) {
         console.error(
           "Budget error:",
@@ -1163,7 +1480,13 @@ export default function Dashboard({
     return (
       <div className="loading-screen">
         <div className="loading-logo">
-          ◒
+          <img
+
+    src="/icon.png"
+
+    alt="PennyPilot"
+
+  />
         </div>
 
         <p>
@@ -1177,7 +1500,13 @@ export default function Dashboard({
     return (
       <div className="loading-screen">
         <div className="loading-logo">
-          ◒
+          <img
+
+    src="/icon.png"
+
+    alt="PennyPilot"
+
+  />
         </div>
 
         <p>
@@ -1203,13 +1532,23 @@ export default function Dashboard({
   return (
     <div className="app-shell">
 
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
+
       <aside className="sidebar">
 
         <div>
 
           <div className="brand">
             <span className="brand-mark">
-              ◒
+               <img
+
+      src="/icon.png"
+
+      alt="PennyPilot"
+
+    />
             </span>
 
             <span>
@@ -1350,12 +1689,17 @@ export default function Dashboard({
             <LogOut
               size={13}
             />
+
             Sign out
           </button>
 
         </div>
 
       </aside>
+
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
 
       <main className="main-content">
 
@@ -1402,6 +1746,7 @@ export default function Dashboard({
               <Zap
                 size={15}
               />
+
               Copilot
             </button>
 
@@ -1416,6 +1761,7 @@ export default function Dashboard({
               <Receipt
                 size={15}
               />
+
               Scan receipt
             </button>
 
@@ -1428,6 +1774,7 @@ export default function Dashboard({
               <Plus
                 size={16}
               />
+
               Add expense
             </button>
 
@@ -1523,11 +1870,11 @@ export default function Dashboard({
 
             </div>
 
-            {/* =================================================
-                FIRST-TIME USER GUIDE
-            ================================================= */}
-
             <WelcomeGuide />
+
+            {/* =================================================
+                PRIMARY STATS
+            ================================================= */}
 
             <section className="stats-grid">
 
@@ -1548,13 +1895,17 @@ export default function Dashboard({
 
               <StatCard
                 icon={
-                  <TrendingUp />
+                  <Activity />
                 }
                 label="DAILY BURN"
                 value={money(
                   dailySpend
                 )}
-                detail="Average spend per day"
+                detail={
+                  spendingVelocity.currentTransactionCount
+                    ? "Current monthly pace"
+                    : "No current-month data"
+                }
               />
 
               <StatCard
@@ -1564,15 +1915,27 @@ export default function Dashboard({
                 label="BUDGET REMAINING"
                 value={
                   budget
-                    ? money(
-                        budgetRemaining
-                      )
+                    ? budgetOverrun >
+                      0
+                      ? money(
+                          budgetOverrun
+                        )
+                      : money(
+                          budgetRemaining
+                        )
                     : "Not set"
                 }
                 detail={
                   budget
-                    ? `${budgetPercentage}% used`
+                    ? budgetOverrun >
+                      0
+                      ? `${budgetPercentage}% used · over limit`
+                      : `${budgetPercentage}% used`
                     : "Set a budget to track"
+                }
+                danger={
+                  budgetOverrun >
+                  0
                 }
               />
 
@@ -1605,6 +1968,10 @@ export default function Dashboard({
 
             </section>
 
+            {/* =================================================
+                BUDGET GUARD
+            ================================================= */}
+
             <section className="panel budget-panel">
 
               <div className="budget-panel-top">
@@ -1628,19 +1995,31 @@ export default function Dashboard({
 
                   <h2>
                     {budget
-                      ? `${money(
-                          monthlyTotal
-                        )} of ${money(
-                          budget
-                        )}`
+                      ? budgetOverrun >
+                        0
+                        ? `${money(
+                            monthlyTotal
+                          )} of ${money(
+                            budget
+                          )}`
+                        : `${money(
+                            monthlyTotal
+                          )} of ${money(
+                            budget
+                          )}`
                       : "Your budget isn't configured yet"}
                   </h2>
 
                   <p>
                     {budget
-                      ? `${money(
-                          budgetRemaining
-                        )} remaining this month.`
+                      ? budgetOverrun >
+                        0
+                        ? `${money(
+                            budgetOverrun
+                          )} above your monthly limit.`
+                        : `${money(
+                            budgetRemaining
+                          )} remaining this month.`
                       : "Set a monthly spending limit to activate Budget Guard."}
                   </p>
 
@@ -1661,7 +2040,9 @@ export default function Dashboard({
               {budget >
               0 ? (
                 <>
+
                   <div className="progress-track">
+
                     <div
                       className={`progress-value ${
                         budgetPercentage >=
@@ -1679,9 +2060,11 @@ export default function Dashboard({
                         )}%`,
                       }}
                     />
+
                   </div>
 
                   <div className="budget-meta">
+
                     <span>
                       {money(
                         monthlyTotal
@@ -1695,7 +2078,55 @@ export default function Dashboard({
                       )}{" "}
                       limit
                     </span>
+
                   </div>
+
+                  <div className="budget-meta">
+
+                    <span>
+                      Forecast:{" "}
+                      {money(
+                        cashFlowForecast.projectedMonthEnd
+                      )}{" "}
+                      month-end
+                    </span>
+
+                    <span>
+                      {formatForecastStatus(
+                        cashFlowForecast.forecastStatus
+                      )}
+                    </span>
+
+                  </div>
+
+                  {daysUntilBudgetExhaustion !==
+                    null &&
+                    daysUntilBudgetExhaustion >
+                      0 &&
+                    cashFlowForecast.forecastStatus !==
+                      "over-budget" && (
+                      <div className="budget-meta">
+
+                        <span>
+                          Current burn:
+                          {" "}
+                          {money(
+                            dailySpend
+                          )}
+                          /day
+                        </span>
+
+                        <span>
+                          ~
+                          {
+                            daysUntilBudgetExhaustion
+                          }{" "}
+                          days remaining
+                        </span>
+
+                      </div>
+                    )}
+
                 </>
               ) : (
                 <button
@@ -1715,6 +2146,10 @@ export default function Dashboard({
               )}
 
             </section>
+
+            {/* =================================================
+                INTELLIGENCE STRIP
+            ================================================= */}
 
             <section className="insight-strip">
 
@@ -1782,6 +2217,10 @@ export default function Dashboard({
 
             </section>
 
+            {/* =================================================
+                SPENDING + WATCHTOWER
+            ================================================= */}
+
             <section className="two-column">
 
               <SpendingChart
@@ -1797,6 +2236,10 @@ export default function Dashboard({
               />
 
             </section>
+
+            {/* =================================================
+                CATEGORY + VENDOR
+            ================================================= */}
 
             <section className="two-column">
 
@@ -1848,52 +2291,72 @@ export default function Dashboard({
                             amount,
                           ],
                           index
-                        ) => (
-                          <div
-                            className="vendor-card"
-                            key={
-                              vendor
-                            }
-                          >
-
-                            <span className="vendor-rank">
-                              {String(
-                                index +
-                                  1
-                              ).padStart(
-                                2,
-                                "0"
-                              )}
-                            </span>
-
-                            <div>
-
-                              <strong>
-                                {
+                        ) => {
+                          const insight =
+                            vendorInsights.find(
+                              (
+                                item
+                              ) =>
+                                normalizeVendor(
+                                  item.vendor
+                                ) ===
+                                normalizeVendor(
                                   vendor
-                                }
-                              </strong>
+                                )
+                            );
 
-                              <p>
-                                {money(
-                                  amount
+                          return (
+                            <div
+                              className="vendor-card"
+                              key={
+                                vendor
+                              }
+                            >
+
+                              <span className="vendor-rank">
+                                {String(
+                                  index +
+                                    1
+                                ).padStart(
+                                  2,
+                                  "0"
                                 )}
-                              </p>
+                              </span>
+
+                              <div>
+
+                                <strong>
+                                  {
+                                    vendor
+                                  }
+                                </strong>
+
+                                <p>
+                                  {money(
+                                    amount
+                                  )}
+
+                                  {insight &&
+                                    ` · ${Math.round(
+                                      insight.spendingShare
+                                    )}%`}
+                                </p>
+
+                              </div>
+
+                              <span className="vendor-arrow">
+
+                                <ChevronRight
+                                  size={
+                                    13
+                                  }
+                                />
+
+                              </span>
 
                             </div>
-
-                            <span className="vendor-arrow">
-
-                              <ChevronRight
-                                size={
-                                  13
-                                }
-                              />
-
-                            </span>
-
-                          </div>
-                        )
+                          );
+                        }
                       )}
 
                   </div>
@@ -1921,9 +2384,136 @@ export default function Dashboard({
                   </div>
                 )}
 
+                {vendorInsights.length >
+                  0 &&
+                  vendorConcentration.topVendorShare >
+                    0 && (
+                    <div className="vendor-concentration-note">
+
+                      <span>
+                        Vendor concentration
+                      </span>
+
+                      <strong>
+                        {
+                          vendorConcentration.topVendorShare
+                        }%
+                      </strong>
+
+                      <small>
+                        of monthly spend is with the top vendor
+                      </small>
+
+                    </div>
+                  )}
+
               </section>
 
             </section>
+
+            {/* =================================================
+                RECURRING COST SIGNAL
+            ================================================= */}
+
+            {recurringExpenses.length >
+              0 && (
+              <section className="panel">
+
+                <div className="panel-header">
+
+                  <div>
+
+                    <span className="section-kicker">
+                      RECURRING COMMITMENTS
+                    </span>
+
+                    <h2>
+                      Known recurring costs
+                    </h2>
+
+                    <p>
+                      Repeating spending
+                      patterns detected from
+                      your ledger.
+                    </p>
+
+                  </div>
+
+                  <CalendarClock
+                    size={17}
+                  />
+
+                </div>
+
+                <div className="forecast-grid">
+
+                  <div>
+
+                    <span>
+                      DETECTED PATTERNS
+                    </span>
+
+                    <strong>
+                      {
+                        recurringExpenses.length
+                      }
+                    </strong>
+
+                  </div>
+
+                  <div>
+
+                    <span>
+                      EST. MONTHLY COMMITMENT
+                    </span>
+
+                    <strong>
+                      {money(
+                        recurringMonthlyCommitment
+                      )}
+                    </strong>
+
+                  </div>
+
+                  <div>
+
+                    <span>
+                      HIGHEST RECURRING COST
+                    </span>
+
+                    <strong>
+                      {money(
+                        recurringExpenses[0]
+                          ?.averageAmount ||
+                          0
+                      )}
+                    </strong>
+
+                  </div>
+
+                </div>
+
+                <div className="vendor-concentration-note">
+
+                  <Activity
+                    size={14}
+                  />
+
+                  <span>
+                    Recurring detection is
+                    based only on repeated
+                    transaction patterns in
+                    your ledger.
+                  </span>
+
+                </div>
+
+              </section>
+            )}
+
+            {/* =================================================
+                RECENT LEDGER
+            ================================================= */}
 
             <section className="panel ledger-panel">
 
@@ -1959,6 +2549,7 @@ export default function Dashboard({
                   <ChevronRight
                     size={14}
                   />
+
                 </button>
 
               </div>
@@ -2020,6 +2611,7 @@ export default function Dashboard({
                   <Download
                     size={15}
                   />
+
                   Export CSV
                 </button>
 
@@ -2032,6 +2624,7 @@ export default function Dashboard({
                   <Plus
                     size={16}
                   />
+
                   Add expense
                 </button>
 
@@ -2192,6 +2785,10 @@ export default function Dashboard({
 
             </section>
 
+            {/* =================================================
+                ANALYTICS STATS
+            ================================================= */}
+
             <section className="stats-grid">
 
               <StatCard
@@ -2209,11 +2806,18 @@ export default function Dashboard({
                 icon={
                   <TrendingUp />
                 }
-                label="DAILY BURN"
+                label="MONTHLY VELOCITY"
                 value={money(
-                  dailySpend
+                  spendingVelocity.currentTotal
                 )}
-                detail="Current monthly pace"
+                detail={
+                  velocityChange ===
+                  null
+                    ? "No prior-month baseline"
+                    : `${formatPercent(
+                        velocityChange
+                      )} vs previous month`
+                }
               />
 
               <StatCard
@@ -2222,9 +2826,7 @@ export default function Dashboard({
                 }
                 label="VENDORS"
                 value={String(
-                  Object.keys(
-                    vendorTotals
-                  ).length
+                  vendorInsights.length
                 )}
                 detail="Active this month"
               />
@@ -2234,10 +2836,20 @@ export default function Dashboard({
                   <ShieldAlert />
                 }
                 label="WATCHTOWER"
-                value={String(
-                  anomalyCount
-                )}
-                detail="Detected patterns"
+                value={
+                  expenses.length <
+                  3
+                    ? "—"
+                    : String(
+                        anomalyCount
+                      )
+                }
+                detail={
+                  expenses.length <
+                  3
+                    ? "Building baseline"
+                    : "Detected patterns"
+                }
                 danger={
                   anomalyCount >
                   0
@@ -2245,6 +2857,10 @@ export default function Dashboard({
               />
 
             </section>
+
+            {/* =================================================
+                CHARTS
+            ================================================= */}
 
             <div className="two-column">
 
@@ -2263,6 +2879,10 @@ export default function Dashboard({
 
             </div>
 
+            {/* =================================================
+                VELOCITY
+            ================================================= */}
+
             <section className="panel">
 
               <div className="panel-header">
@@ -2270,17 +2890,19 @@ export default function Dashboard({
                 <div>
 
                   <span className="section-kicker">
-                    PROJECTION
+                    SPENDING VELOCITY
                   </span>
 
                   <h2>
-                    Spending velocity
+                    Current spending trajectory
                   </h2>
 
                   <p>
-                    Projection based on
-                    your current daily
-                    spending pace.
+                    Current-month pace
+                    compared with the
+                    previous month and
+                    projected across the
+                    full month.
                   </p>
 
                 </div>
@@ -2292,6 +2914,52 @@ export default function Dashboard({
               </div>
 
               <div className="forecast-grid">
+
+                <div>
+
+                  <span>
+                    CURRENT MONTH
+                  </span>
+
+                  <strong>
+                    {money(
+                      spendingVelocity.currentTotal
+                    )}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    PREVIOUS MONTH
+                  </span>
+
+                  <strong>
+                    {money(
+                      spendingVelocity.previousTotal
+                    )}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    MONTH-TO-MONTH
+                  </span>
+
+                  <strong>
+                    {formatPercent(
+                      velocityChange
+                    )}
+                  </strong>
+
+                </div>
+
+              </div>
+
+              <div className="forecast-status">
 
                 <div>
 
@@ -2324,7 +2992,123 @@ export default function Dashboard({
                 <div>
 
                   <span>
-                    MONTHLY BUDGET
+                    DAYS ELAPSED
+                  </span>
+
+                  <strong>
+                    {
+                      spendingVelocity.dayOfMonth
+                    }
+                    /
+                    {
+                      spendingVelocity.daysInMonth
+                    }
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    TRANSACTIONS
+                  </span>
+
+                  <strong>
+                    {
+                      spendingVelocity.currentTransactionCount
+                    }
+                  </strong>
+
+                </div>
+
+              </div>
+
+            </section>
+
+            {/* =================================================
+                CASH FLOW
+            ================================================= */}
+
+            <section className="panel">
+
+              <div className="panel-header">
+
+                <div>
+
+                  <span className="section-kicker">
+                    CASH FLOW FORECAST
+                  </span>
+
+                  <h2>
+                    Projected month-end position
+                  </h2>
+
+                  <p>
+                    Forward projection based
+                    on your recorded spending
+                    pace.
+                  </p>
+
+                </div>
+
+                <CircleDollarSign
+                  size={17}
+                />
+
+              </div>
+
+              <div className="forecast-grid">
+
+                <div>
+
+                  <span>
+                    FORECAST STATUS
+                  </span>
+
+                  <strong>
+                    {formatForecastStatus(
+                      cashFlowForecast.forecastStatus
+                    )}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    PROJECTED MONTH-END
+                  </span>
+
+                  <strong>
+                    {money(
+                      cashFlowForecast.projectedMonthEnd
+                    )}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    30-DAY OUTFLOW
+                  </span>
+
+                  <strong>
+                    {money(
+                      cashFlowForecast.projected30DayOutflow
+                    )}
+                  </strong>
+
+                </div>
+
+              </div>
+
+              <div className="forecast-status">
+
+                <div>
+
+                  <span>
+                    BUDGET
                   </span>
 
                   <strong>
@@ -2337,7 +3121,267 @@ export default function Dashboard({
 
                 </div>
 
+                <div>
+
+                  <span>
+                    CURRENT SPEND
+                  </span>
+
+                  <strong>
+                    {money(
+                      cashFlowForecast.currentSpend
+                    )}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    REMAINING
+                  </span>
+
+                  <strong>
+                    {budget
+                      ? money(
+                          cashFlowForecast.remainingBudget
+                        )
+                      : "—"}
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    EXHAUSTION
+                  </span>
+
+                  <strong>
+                    {daysUntilBudgetExhaustion !==
+                    null
+                      ? `${daysUntilBudgetExhaustion}d`
+                      : "—"}
+                  </strong>
+
+                </div>
+
               </div>
+
+            </section>
+
+            {/* =================================================
+                RECURRING
+            ================================================= */}
+
+            <RecurringExpenses
+              expenses={
+                expenses
+              }
+            />
+
+            {/* =================================================
+                VENDOR CONCENTRATION
+            ================================================= */}
+
+            <section className="panel">
+
+              <div className="panel-header">
+
+                <div>
+
+                  <span className="section-kicker">
+                    VENDOR INTELLIGENCE
+                  </span>
+
+                  <h2>
+                    Vendor concentration
+                  </h2>
+
+                  <p>
+                    Understand how much
+                    of this month's spend
+                    is concentrated among
+                    your vendors.
+                  </p>
+
+                </div>
+
+                <Building2
+                  size={17}
+                />
+
+              </div>
+
+              <div className="forecast-grid">
+
+                <div>
+
+                  <span>
+                    TOP VENDOR SHARE
+                  </span>
+
+                  <strong>
+                    {
+                      vendorConcentration.topVendorShare
+                    }%
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    TOP 3 SHARE
+                  </span>
+
+                  <strong>
+                    {
+                      vendorConcentration.topThreeShare
+                    }%
+                  </strong>
+
+                </div>
+
+                <div>
+
+                  <span>
+                    CONCENTRATED VENDORS
+                  </span>
+
+                  <strong>
+                    {
+                      vendorConcentration.concentratedVendors
+                    }
+                  </strong>
+
+                </div>
+
+              </div>
+
+              {vendorInsights.length >
+                0 && (
+                <div className="vendor-list">
+
+                  {vendorInsights
+                    .slice(
+                      0,
+                      6
+                    )
+                    .map(
+                      (
+                        vendor,
+                        index
+                      ) => (
+                        <div
+                          className="vendor-row"
+                          key={
+                            `${vendor.vendor}-${index}`
+                          }
+                        >
+
+                          <span className="vendor-rank">
+                            {String(
+                              index +
+                                1
+                            ).padStart(
+                              2,
+                              "0"
+                            )}
+                          </span>
+
+                          <div>
+
+                            <strong className="vendor-name">
+                              {
+                                vendor.vendor
+                              }
+                            </strong>
+
+                            <div className="vendor-meta">
+                              {
+                                vendor.dominantCategory
+                              }
+                            </div>
+
+                          </div>
+
+                          <div className="vendor-stats">
+
+                            <div className="vendor-stat">
+
+                              <span>
+                                SPEND
+                              </span>
+
+                              <strong>
+                                {money(
+                                  vendor.totalSpend
+                                )}
+                              </strong>
+
+                            </div>
+
+                            <div className="vendor-stat">
+
+                              <span>
+                                SHARE
+                              </span>
+
+                              <strong>
+                                {
+                                  Math.round(
+                                    vendor.spendingShare
+                                  )
+                                }%
+                              </strong>
+
+                            </div>
+
+                            <div className="vendor-stat">
+
+                              <span>
+                                TXNS
+                              </span>
+
+                              <strong>
+                                {
+                                  vendor.transactionCount
+                                }
+                              </strong>
+
+                            </div>
+
+                            <div className="vendor-stat">
+
+                              <span>
+                                AVG TXN
+                              </span>
+
+                              <strong>
+                                {money(
+                                  vendor.averageTransaction
+                                )}
+                              </strong>
+
+                            </div>
+
+                          </div>
+
+                          <div className="vendor-chevron">
+                            <ChevronRight
+                              size={
+                                14
+                              }
+                            />
+                          </div>
+
+                        </div>
+                      )
+                    )}
+
+                </div>
+              )}
 
             </section>
 
@@ -2488,7 +3532,7 @@ export default function Dashboard({
         )}
 
         {/* =====================================================
-            DELETE CONFIRMATION
+            DELETE
         ===================================================== */}
 
         {deleteTarget && (
@@ -2699,6 +3743,7 @@ export default function Dashboard({
                     )
                   }
                 />
+
               </label>
 
               <div className="budget-explainer">
@@ -3112,7 +4157,37 @@ function isValidDate(
 }
 
 /* =========================================================
+   FORECAST STATUS
+========================================================= */
+
+function formatForecastStatus(
+  status: string
+) {
+  switch (status) {
+    case "healthy":
+      return "Healthy";
+
+    case "watch":
+      return "Watch";
+
+    case "over-budget":
+      return "Over budget";
+
+    case "insufficient-data":
+      return "Insufficient data";
+
+    case "no-budget":
+      return "Budget not set";
+
+    default:
+      return "Unknown";
+  }
+}
+
+/* =========================================================
    ANOMALY DETECTION
+   Dashboard summary only.
+   Watchtower remains the detailed detector.
 ========================================================= */
 
 function countAnomalies(
@@ -3127,15 +4202,60 @@ function countAnomalies(
   let count = 0;
 
   for (const expense of expenses) {
-    const historical =
-      expenses.filter(
-        (other) =>
-          other.id !==
-            expense.id &&
-          other.category ===
-            expense.category
+    const amount =
+      Number(
+        expense.amount
       );
 
+    if (
+      !Number.isFinite(
+        amount
+      ) ||
+      amount <= 0
+    ) {
+      continue;
+    }
+
+    const historical =
+      expenses.filter(
+        (other) => {
+          if (
+            other.id ===
+            expense.id
+          ) {
+            return false;
+          }
+
+          if (
+            other.category !==
+            expense.category
+          ) {
+            return false;
+          }
+
+          const otherAmount =
+            Number(
+              other.amount
+            );
+
+          if (
+            !Number.isFinite(
+              otherAmount
+            ) ||
+            otherAmount <= 0
+          ) {
+            return false;
+          }
+
+          return true;
+        }
+      );
+
+    /*
+     * Require at least two historical
+     * category observations before
+     * calling something unusual.
+     */
     if (
       historical.length <
       2
@@ -3159,10 +4279,7 @@ function countAnomalies(
 
     if (
       average > 0 &&
-      Number(
-        expense.amount
-      ) /
-        average >=
+      amount / average >=
         2.5
     ) {
       count++;

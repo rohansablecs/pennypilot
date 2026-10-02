@@ -1,47 +1,306 @@
 <svg
-  width="96"
-  height="96"
-  viewBox="0 0 96 96"
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
   fill="none"
   xmlns="http://www.w3.org/2000/svg"
 >
-  <rect
-    x="2"
-    y="2"
-    width="92"
-    height="92"
-    rx="22"
-    fill="#FFFFFF"
-    stroke="#CBD2D8"
-    stroke-width="3"
+  <defs>
+
+    <!-- MAIN COIN GRADIENT -->
+    <radialGradient
+      id="coinGradient"
+      cx="185"
+      cy="135"
+      r="310"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#C084FC"/>
+      <stop offset="0.22" stop-color="#A855F7"/>
+      <stop offset="0.48" stop-color="#7C3AED"/>
+      <stop offset="0.72" stop-color="#5B21B6"/>
+      <stop offset="1" stop-color="#3B0764"/>
+    </radialGradient>
+
+    <!-- FACE GRADIENT -->
+    <radialGradient
+      id="faceGradient"
+      cx="195"
+      cy="150"
+      r="245"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#A855F7"/>
+      <stop offset="0.38" stop-color="#843CE3"/>
+      <stop offset="0.72" stop-color="#6527BD"/>
+      <stop offset="1" stop-color="#4C1D95"/>
+    </radialGradient>
+
+    <!-- LETTER GRADIENT -->
+    <linearGradient
+      id="letterGradient"
+      x1="220"
+      y1="175"
+      x2="295"
+      y2="340"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#E9D5FF"/>
+      <stop offset="0.3" stop-color="#D8B4FE"/>
+      <stop offset="0.65" stop-color="#C084FC"/>
+      <stop offset="1" stop-color="#A855F7"/>
+    </linearGradient>
+
+    <!-- EDGE HIGHLIGHT -->
+    <linearGradient
+      id="edgeHighlight"
+      x1="150"
+      y1="100"
+      x2="360"
+      y2="410"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop offset="0" stop-color="#F3E8FF"/>
+      <stop offset="0.25" stop-color="#D8B4FE"/>
+      <stop offset="0.55" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <!-- OUTER PURPLE GLOW -->
+    <filter
+      id="purpleGlow"
+      x="-50%"
+      y="-50%"
+      width="200%"
+      height="200%"
+    >
+      <feGaussianBlur
+        stdDeviation="18"
+        result="blur"
+      />
+
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="
+          0.55 0   0   0   0.35
+          0    0.25 0   0   0.05
+          0    0   0.9 0   0.75
+          0    0   0   0.55 0
+        "
+      />
+
+      <feMerge>
+        <feMergeNode/>
+      </feMerge>
+    </filter>
+
+    <!-- SOFT SHADOW -->
+    <filter
+      id="softShadow"
+      x="-30%"
+      y="-30%"
+      width="160%"
+      height="170%"
+    >
+      <feDropShadow
+        dx="0"
+        dy="12"
+        stdDeviation="14"
+        flood-color="#2E1065"
+        flood-opacity="0.3"
+      />
+    </filter>
+
+    <!-- LETTER SHADOW -->
+    <filter
+      id="letterShadow"
+      x="-30%"
+      y="-30%"
+      width="160%"
+      height="160%"
+    >
+      <feDropShadow
+        dx="0"
+        dy="4"
+        stdDeviation="3"
+        flood-color="#2E1065"
+        flood-opacity="0.55"
+      />
+    </filter>
+
+  </defs>
+
+
+  <!-- ========================================= -->
+  <!-- GLOW -->
+  <!-- ========================================= -->
+
+  <circle
+    cx="256"
+    cy="256"
+    r="165"
+    fill="#7C3AED"
+    opacity="0.42"
+    filter="url(#purpleGlow)"
   />
 
-  <path
-    d="M48 25
-       C37.507 25 29 33.507 29 44
-       C29 54.493 37.507 63 48 63
-       C58.493 63 67 54.493 67 44
-       C67 33.507 58.493 25 48 25Z"
-    fill="#11161B"
-  />
 
-  <path
-    d="M29 44
-       C29 54.493 37.507 63 48 63
-       C58.493 63 67 54.493 67 44
-       C67 43.2 66.95 42.4 66.85 41.62
-       C61.56 44.25 55.01 45.75 48 45.75
-       C40.99 45.75 34.44 44.25 29.15 41.62
-       C29.05 42.4 29 43.2 29 44Z"
-    fill="#FFFFFF"
-  />
+  <!-- ========================================= -->
+  <!-- COIN -->
+  <!-- ========================================= -->
 
-  <rect
-    x="29"
-    y="42"
-    width="38"
-    height="4"
-    rx="2"
-    fill="#FFFFFF"
-  />
+  <g filter="url(#softShadow)">
+
+    <!-- Outer body -->
+    <circle
+      cx="256"
+      cy="256"
+      r="174"
+      fill="url(#coinGradient)"
+    />
+
+    <!-- Outer edge -->
+    <circle
+      cx="256"
+      cy="256"
+      r="174"
+      stroke="#4C1D95"
+      stroke-width="5"
+    />
+
+    <!-- Bright metallic rim -->
+    <circle
+      cx="256"
+      cy="256"
+      r="168"
+      stroke="url(#edgeHighlight)"
+      stroke-width="3"
+      opacity="0.9"
+    />
+
+
+    <!-- ========================================= -->
+    <!-- INNER FACE -->
+    <!-- ========================================= -->
+
+    <circle
+      cx="256"
+      cy="256"
+      r="143"
+      fill="url(#faceGradient)"
+    />
+
+    <!-- Inner dark rim -->
+    <circle
+      cx="256"
+      cy="256"
+      r="143"
+      stroke="#3B0764"
+      stroke-width="5"
+      opacity="0.65"
+    />
+
+    <!-- Inner rim highlight -->
+    <circle
+      cx="256"
+      cy="256"
+      r="137"
+      stroke="#C084FC"
+      stroke-width="2"
+      opacity="0.55"
+    />
+
+
+    <!-- ========================================= -->
+    <!-- MINIMAL RIDGED EDGE -->
+    <!-- ========================================= -->
+
+    <g
+      stroke="#C084FC"
+      stroke-width="2"
+      opacity="0.45"
+    >
+      <path d="M384 147L394 141"/>
+      <path d="M389 157L399 151"/>
+      <path d="M394 167L404 161"/>
+      <path d="M398 178L408 173"/>
+      <path d="M402 189L412 185"/>
+      <path d="M405 201L415 197"/>
+      <path d="M408 213L418 210"/>
+      <path d="M410 225L420 222"/>
+      <path d="M411 238L421 236"/>
+      <path d="M412 251L422 250"/>
+      <path d="M412 264L422 264"/>
+      <path d="M411 277L421 278"/>
+      <path d="M410 290L420 292"/>
+      <path d="M408 303L418 306"/>
+      <path d="M405 316L415 320"/>
+      <path d="M402 329L412 333"/>
+      <path d="M398 341L408 346"/>
+      <path d="M393 352L403 358"/>
+    </g>
+
+
+    <!-- ========================================= -->
+    <!-- PENNYPILOT "P" -->
+    <!-- ========================================= -->
+
+    <g filter="url(#letterShadow)">
+
+      <!-- Main geometric P -->
+      <path
+        d="
+          M214 168
+          H238
+          V190
+
+          C248 181 260 177 274 177
+
+          C310 177 333 202 333 238
+
+          C333 274 310 299 274 299
+
+          C260 299 248 295 238 286
+
+          V344
+
+          H214
+          V168
+
+          Z
+
+          M271 201
+
+          C251 201 238 215 238 238
+
+          C238 261 251 275 271 275
+
+          C291 275 305 261 305 238
+
+          C305 215 291 201 271 201
+
+          Z
+        "
+        fill="url(#letterGradient)"
+        fill-rule="evenodd"
+      />
+
+      <!-- Letter highlight -->
+      <path
+        d="
+          M216 170
+          H236
+          V195
+          C247 184 260 180 274 180
+        "
+        stroke="#F5E9FF"
+        stroke-width="3"
+        stroke-linecap="round"
+        opacity="0.7"
+      />
+
+    </g>
+
+  </g>
 </svg>

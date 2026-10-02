@@ -9,7 +9,7 @@ import {
 
 type Expense = {
   id: string;
-  amount: number;
+  amount: number | string;
   category: string;
   vendor: string;
   payment_method: string;
@@ -19,207 +19,396 @@ type Expense = {
 
 type Anomaly = {
   expense: Expense;
+
   categoryAverage: number;
   categoryMultiplier: number;
-  vendorTotal: number;
+
+  vendorAverage: number;
+
   categoryTotal: number;
+
+  categoryShare: number;
+
   reasons: string[];
-  severity: "high" | "medium";
+
+  severity:
+    | "high"
+    | "medium";
 };
 
 type Props = {
   expenses: Expense[];
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
+function money(
+  value: number
+) {
+  return new Intl.NumberFormat(
+    "en-IN",
+    {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }
+  ).format(value);
 }
 
-function normalizeVendor(vendor: string) {
-  return vendor
+function normalize(
+  value: string
+) {
+  return value
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, " ");
+    .replace(
+      /[^a-z0-9\s]/g,
+      " "
+    )
+    .replace(
+      /\s+/g,
+      " "
+    );
 }
 
-function average(values: number[]) {
-  if (!values.length) return 0;
+function average(
+  values: number[]
+) {
+  if (!values.length) {
+    return 0;
+  }
 
   return (
-    values.reduce((sum, value) => sum + value, 0) /
+    values.reduce(
+      (sum, value) =>
+        sum + value,
+      0
+    ) /
     values.length
   );
+}
+
+function validAmount(
+  amount: number | string
+) {
+  const value =
+    Number(amount);
+
+  return Number.isFinite(
+    value
+  ) && value > 0
+    ? value
+    : 0;
 }
 
 function detectAnomalies(
   expenses: Expense[]
 ): Anomaly[] {
-  if (expenses.length < 3) {
+  const validExpenses =
+    expenses.filter(
+      (expense) =>
+        validAmount(
+          expense.amount
+        ) > 0 &&
+        Boolean(
+          expense.category?.trim()
+        )
+    );
+
+  if (
+    validExpenses.length <
+    3
+  ) {
     return [];
   }
 
-  const anomalies: Anomaly[] = [];
+  const categoryGroups =
+    new Map<
+      string,
+      Expense[]
+    >();
 
-  const categoryGroups = new Map<
-    string,
-    Expense[]
-  >();
+  const vendorGroups =
+    new Map<
+      string,
+      Expense[]
+    >();
 
-  const vendorGroups = new Map<
-    string,
-    Expense[]
-  >();
-
-  for (const expense of expenses) {
+  for (const expense of validExpenses) {
     const category =
-      expense.category.trim().toLowerCase();
+      normalize(
+        expense.category
+      );
 
-    const vendor = normalizeVendor(expense.vendor);
+    const vendor =
+      normalize(
+        expense.vendor
+      );
 
     const categoryItems =
-      categoryGroups.get(category) ?? [];
+      categoryGroups.get(
+        category
+      ) ?? [];
 
-    categoryItems.push(expense);
-    categoryGroups.set(category, categoryItems);
+    categoryItems.push(
+      expense
+    );
 
-    const vendorItems =
-      vendorGroups.get(vendor) ?? [];
+    categoryGroups.set(
+      category,
+      categoryItems
+    );
 
-    vendorItems.push(expense);
-    vendorGroups.set(vendor, vendorItems);
+    if (vendor) {
+      const vendorItems =
+        vendorGroups.get(
+          vendor
+        ) ?? [];
+
+      vendorItems.push(
+        expense
+      );
+
+      vendorGroups.set(
+        vendor,
+        vendorItems
+      );
+    }
   }
 
-  for (const expense of expenses) {
-    const category =
-      expense.category.trim().toLowerCase();
+  const anomalies:
+    Anomaly[] = [];
 
-    const vendor = normalizeVendor(expense.vendor);
+  for (const expense of validExpenses) {
+    const category =
+      normalize(
+        expense.category
+      );
+
+    const vendor =
+      normalize(
+        expense.vendor
+      );
 
     const categoryItems =
-      categoryGroups.get(category) ?? [];
+      categoryGroups.get(
+        category
+      ) ?? [];
 
-    const categoryPeers = categoryItems.filter(
-      (item) => item.id !== expense.id
-    );
+    /*
+     * Exclude the transaction itself from the baseline.
+     */
+    const peers =
+      categoryItems.filter(
+        (item) =>
+          item.id !==
+          expense.id
+      );
 
-    if (categoryPeers.length < 1) {
+    /*
+     * One peer is too weak to establish a useful
+     * category baseline.
+     */
+    if (peers.length < 2) {
       continue;
     }
 
-    const categoryAverage = average(
-      categoryPeers.map((item) =>
-        Number(item.amount)
-      )
-    );
+    const peerAmounts =
+      peers.map(
+        (item) =>
+          validAmount(
+            item.amount
+          )
+      );
 
-    if (categoryAverage <= 0) {
+    const categoryAverage =
+      average(
+        peerAmounts
+      );
+
+    if (
+      categoryAverage <=
+      0
+    ) {
       continue;
     }
 
-    const amount = Number(expense.amount);
+    const amount =
+      validAmount(
+        expense.amount
+      );
 
     const categoryMultiplier =
-      amount / categoryAverage;
+      amount /
+      categoryAverage;
+
+    const categoryTotal =
+      categoryItems.reduce(
+        (sum, item) =>
+          sum +
+          validAmount(
+            item.amount
+          ),
+        0
+      );
+
+    const categoryShare =
+      categoryTotal > 0
+        ? amount /
+          categoryTotal
+        : 0;
 
     const vendorItems =
-      vendorGroups.get(vendor) ?? [];
+      vendor
+        ? vendorGroups.get(
+            vendor
+          ) ?? []
+        : [];
 
-    const vendorTotal = vendorItems.reduce(
-      (sum, item) =>
-        sum + Number(item.amount),
-      0
-    );
-
-    const categoryTotal = categoryItems.reduce(
-      (sum, item) =>
-        sum + Number(item.amount),
-      0
-    );
-
-    const reasons: string[] = [];
-
-    if (categoryMultiplier >= 3) {
-      reasons.push(
-        `${categoryMultiplier.toFixed(1)}× your typical ${expense.category} transaction`
+    const vendorPeers =
+      vendorItems.filter(
+        (item) =>
+          item.id !==
+          expense.id
       );
-    } else if (categoryMultiplier >= 2.5) {
-      reasons.push(
-        `${categoryMultiplier.toFixed(1)}× your typical ${expense.category} transaction`
-      );
-    }
+
+    const vendorAverage =
+      vendorPeers.length
+        ? average(
+            vendorPeers.map(
+              (item) =>
+                validAmount(
+                  item.amount
+                )
+            )
+          )
+        : 0;
+
+    const reasons:
+      string[] = [];
 
     if (
-      amount >= categoryAverage &&
-      amount / Math.max(categoryTotal, 1) >= 0.5
+      categoryMultiplier >=
+      3
     ) {
       reasons.push(
-        `accounts for a large share of ${expense.category} spending`
+        `${categoryMultiplier.toFixed(
+          1
+        )}× your typical ${expense.category} transaction`
+      );
+    } else if (
+      categoryMultiplier >=
+      2.5
+    ) {
+      reasons.push(
+        `${categoryMultiplier.toFixed(
+          1
+        )}× your typical ${expense.category} transaction`
       );
     }
 
     if (
-      vendorItems.length >= 2 &&
+      categoryShare >=
+      0.5
+    ) {
+      reasons.push(
+        `accounts for ${Math.round(
+          categoryShare *
+            100
+        )}% of recorded ${expense.category} spending`
+      );
+    }
+
+    if (
+      vendorPeers.length >=
+        2 &&
+      vendorAverage > 0 &&
       amount >
-        average(
-          vendorItems.map((item) =>
-            Number(item.amount)
-          )
-        ) * 2.5
+        vendorAverage *
+          2.5
     ) {
       reasons.push(
         "significantly above your usual vendor amount"
       );
     }
 
-    if (reasons.length === 0) {
+    if (
+      !reasons.length
+    ) {
       continue;
     }
 
     const severity =
-      categoryMultiplier >= 3 ||
-      amount / Math.max(categoryTotal, 1) >= 0.6
+      categoryMultiplier >=
+        3 ||
+      categoryShare >=
+        0.6
         ? "high"
         : "medium";
 
     anomalies.push({
       expense,
+
       categoryAverage,
+
       categoryMultiplier,
-      vendorTotal,
+
+      vendorAverage,
+
       categoryTotal,
+
+      categoryShare,
+
       reasons,
+
       severity,
     });
   }
 
-  return anomalies.sort((a, b) => {
-    const severityDifference =
-      a.severity === "high" && b.severity !== "high"
-        ? -1
-        : a.severity !== "high" &&
-            b.severity === "high"
-          ? 1
-          : 0;
+  /*
+   * One signal per transaction.
+   *
+   * Sort strongest signals first.
+   */
+  return anomalies.sort(
+    (a, b) => {
+      const severityA =
+        a.severity === "high"
+          ? 2
+          : 1;
 
-    if (severityDifference !== 0) {
-      return severityDifference;
+      const severityB =
+        b.severity === "high"
+          ? 2
+          : 1;
+
+      if (
+        severityA !==
+        severityB
+      ) {
+        return (
+          severityB -
+          severityA
+        );
+      }
+
+      return (
+        b.categoryMultiplier -
+        a.categoryMultiplier
+      );
     }
-
-    return (
-      b.categoryMultiplier -
-      a.categoryMultiplier
-    );
-  });
+  );
 }
 
 export default function Watchtower({
   expenses,
 }: Props) {
-  const anomalies = detectAnomalies(expenses);
+  const anomalies =
+    detectAnomalies(
+      expenses
+    );
+
+  const hasEnoughData =
+    expenses.length >=
+    5;
 
   return (
     <section className="watchtower-card">
@@ -229,11 +418,13 @@ export default function Watchtower({
             FINANCIAL MONITOR
           </div>
 
-          <h2>Watchtower</h2>
+          <h2>
+            Watchtower
+          </h2>
 
           <p>
-            PennyPilot watches your spending patterns
-            for unusual transactions.
+            PennyPilot monitors recorded spending for
+            unusual transaction patterns.
           </p>
         </div>
 
@@ -245,15 +436,20 @@ export default function Watchtower({
           }`}
         >
           {anomalies.length ? (
-            <ShieldAlert size={17} />
+            <ShieldAlert
+              size={17}
+            />
           ) : (
-            <CheckCircle2 size={17} />
+            <CheckCircle2
+              size={17}
+            />
           )}
 
           <span>
             {anomalies.length
               ? `${anomalies.length} signal${
-                  anomalies.length === 1
+                  anomalies.length ===
+                  1
                     ? ""
                     : "s"
                 }`
@@ -265,7 +461,9 @@ export default function Watchtower({
       {!anomalies.length ? (
         <div className="watchtower-empty">
           <div className="watchtower-empty-icon">
-            <CheckCircle2 size={22} />
+            <CheckCircle2
+              size={22}
+            />
           </div>
 
           <div>
@@ -274,87 +472,120 @@ export default function Watchtower({
             </strong>
 
             <p>
-              Your recorded transactions currently
-              fall within the spending patterns PennyPilot
-              has observed.
+              Your recorded transactions currently fall
+              within the patterns PennyPilot has observed.
             </p>
           </div>
         </div>
       ) : (
         <div className="watchtower-alerts">
-          {anomalies.slice(0, 5).map((anomaly) => (
-            <div
-              className={`watchtower-alert ${
-                anomaly.severity === "high"
-                  ? "watchtower-alert-high"
-                  : "watchtower-alert-medium"
-              }`}
-              key={anomaly.expense.id}
-            >
-              <div className="watchtower-alert-icon">
-                <AlertTriangle size={17} />
-              </div>
-
-              <div className="watchtower-alert-body">
-                <div className="watchtower-alert-top">
-                  <div>
-                    <strong>
-                      Unusual {anomaly.expense.category}{" "}
-                      expense
-                    </strong>
-
-                    <span>
-                      {anomaly.expense.vendor}
-                    </span>
+          {anomalies
+            .slice(0, 5)
+            .map(
+              (anomaly) => (
+                <div
+                  className={`watchtower-alert ${
+                    anomaly.severity ===
+                    "high"
+                      ? "watchtower-alert-high"
+                      : "watchtower-alert-medium"
+                  }`}
+                  key={
+                    anomaly.expense
+                      .id
+                  }
+                >
+                  <div className="watchtower-alert-icon">
+                    <AlertTriangle
+                      size={17}
+                    />
                   </div>
 
-                  <strong className="watchtower-alert-amount">
-                    {money(
-                      Number(anomaly.expense.amount)
-                    )}
-                  </strong>
-                </div>
+                  <div className="watchtower-alert-body">
+                    <div className="watchtower-alert-top">
+                      <div>
+                        <strong>
+                          Unusual{" "}
+                          {
+                            anomaly
+                              .expense
+                              .category
+                          }{" "}
+                          expense
+                        </strong>
 
-                <div className="watchtower-reasons">
-                  {anomaly.reasons.map(
-                    (reason, index) => (
-                      <div
-                        key={`${reason}-${index}`}
-                        className="watchtower-reason"
-                      >
-                        <TrendingUp size={13} />
-                        {reason}
+                        <span>
+                          {
+                            anomaly
+                              .expense
+                              .vendor
+                          }
+                        </span>
                       </div>
-                    )
-                  )}
+
+                      <strong className="watchtower-alert-amount">
+                        {money(
+                          validAmount(
+                            anomaly
+                              .expense
+                              .amount
+                          )
+                        )}
+                      </strong>
+                    </div>
+
+                    <div className="watchtower-reasons">
+                      {anomaly.reasons.map(
+                        (
+                          reason,
+                          index
+                        ) => (
+                          <div
+                            key={`${reason}-${index}`}
+                            className="watchtower-reason"
+                          >
+                            <TrendingUp
+                              size={13}
+                            />
+
+                            {reason}
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    <div className="watchtower-comparison">
+                      <span>
+                        Typical category
+                        transaction
+                      </span>
+
+                      <strong>
+                        {money(
+                          anomaly.categoryAverage
+                        )}
+                      </strong>
+
+                      <span>
+                        ·{" "}
+                        {anomaly.categoryMultiplier.toFixed(
+                          1
+                        )}
+                        × higher
+                      </span>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="watchtower-comparison">
-                  <span>
-                    Typical category transaction
-                  </span>
-
-                  <strong>
-                    {money(
-                      anomaly.categoryAverage
-                    )}
-                  </strong>
-
-                  <span>
-                    · {anomaly.categoryMultiplier.toFixed(1)}
-                    × higher
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+              )
+            )}
         </div>
       )}
 
-      {expenses.length < 3 && (
+      {!hasEnoughData && (
         <div className="watchtower-data-note">
-          Add at least 3 transactions to establish a
-          meaningful spending baseline.
+          Add more transactions to establish a stronger
+          spending baseline. Signals are intentionally
+          conservative with limited history.
         </div>
       )}
     </section>

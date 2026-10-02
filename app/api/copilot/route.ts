@@ -1,27 +1,41 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
+import {
+  calculateCashFlowForecast,
+} from "@/lib/cashFlowEngine";
 
-type Expense = {
-  id: string;
-  amount: number | string;
-  category: string;
-  vendor: string;
-  payment_method: string;
-  expense_date: string;
-  notes?: string | null;
-};
+import {
+  calculateSpendingVelocity,
+  detectRecurringExpenses,
+  FinancialExpense,
+} from "@/lib/financialEngine";
+
+import {
+  analyzeVendors,
+  calculateVendorConcentration,
+} from "@/lib/vendorEngine";
+
+export const runtime =
+  "nodejs";
+
+type Expense = FinancialExpense;
 
 type Message = {
-  role: "user" | "assistant";
+  role:
+    | "user"
+    | "assistant";
   content: string;
 };
 
 type RequestBody = {
   question: string;
+
   businessName: string;
+
   monthlyBudget: number;
+
   expenses: Expense[];
+
   conversation?: Message[];
 };
 
@@ -31,218 +45,309 @@ const HF_URL =
 const HF_MODEL =
   "openai/gpt-oss-120b:groq";
 
-function cleanToken(value: string) {
+function cleanToken(
+  value: string
+) {
   return value
     .trim()
-    .replace(/^["']|["']$/g, "");
+    .replace(
+      /^["']|["']$/g,
+      ""
+    );
 }
 
-function total(expenses: Expense[]) {
+function parseDate(
+  value: string
+) {
+  const date =
+    new Date(
+      `${value}T00:00:00`
+    );
+
+  return Number.isNaN(
+    date.getTime()
+  )
+    ? null
+    : date;
+}
+
+function validAmount(
+  value: number | string
+) {
+  const amount =
+    Number(value);
+
+  return Number.isFinite(
+    amount
+  ) && amount > 0
+    ? amount
+    : 0;
+}
+
+function total(
+  expenses: Expense[]
+) {
   return expenses.reduce(
     (sum, expense) =>
-      sum + Number(expense.amount || 0),
+      sum +
+      validAmount(
+        expense.amount
+      ),
     0
   );
 }
 
-function monthKey(date: string) {
-  return date.slice(0, 7);
-}
+function getCurrentMonthExpenses(
+  expenses: Expense[],
+  referenceDate = new Date()
+) {
+  return expenses.filter(
+    (expense) => {
+      const date =
+        parseDate(
+          expense.expense_date
+        );
 
-function getMonth(offset = 0) {
-  const date = new Date();
+      if (!date) {
+        return false;
+      }
 
-  date.setMonth(
-    date.getMonth() + offset
+      if (date > referenceDate) {
+        return false;
+      }
+
+      return (
+        date.getFullYear() ===
+          referenceDate.getFullYear() &&
+        date.getMonth() ===
+          referenceDate.getMonth()
+      );
+    }
   );
-
-  return date.toISOString().slice(0, 7);
 }
 
-function categories(expenses: Expense[]) {
-  const map = new Map<string, number>();
+function categories(
+  expenses: Expense[]
+) {
+  const map =
+    new Map<
+      string,
+      number
+    >();
 
   for (const expense of expenses) {
-    const name =
-      expense.category?.trim() || "Other";
+    const category =
+      expense.category?.trim() ||
+      "Other";
 
     map.set(
-      name,
-      (map.get(name) || 0) +
-        Number(expense.amount || 0)
+      category,
+      (map.get(
+        category
+      ) ?? 0) +
+        validAmount(
+          expense.amount
+        )
     );
   }
 
-  return [...map.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, amount]) => ({
-      category,
-      amount,
-    }));
-}
-
-function vendors(expenses: Expense[]) {
-  const map = new Map<
-    string,
-    {
-      amount: number;
-      count: number;
-    }
-  >();
-
-  for (const expense of expenses) {
-    const name =
-      expense.vendor?.trim() || "Unknown";
-
-    const existing = map.get(name);
-
-    if (existing) {
-      existing.amount += Number(
-        expense.amount || 0
-      );
-
-      existing.count += 1;
-    } else {
-      map.set(name, {
-        amount: Number(
-          expense.amount || 0
-        ),
-        count: 1,
-      });
-    }
-  }
-
-  return [...map.entries()]
+  return [
+    ...map.entries(),
+  ]
     .sort(
       (a, b) =>
-        b[1].amount - a[1].amount
+        b[1] - a[1]
     )
-    .map(([vendor, data]) => ({
-      vendor,
-      amount: data.amount,
-      count: data.count,
-    }));
+    .map(
+      ([category, amount]) => ({
+        category,
+        amount,
+      })
+    );
 }
 
 function buildContext(
   expenses: Expense[],
   monthlyBudget: number
 ) {
-  const currentMonth = getMonth(0);
-  const previousMonth = getMonth(-1);
+  const referenceDate =
+    new Date();
 
-  const current = expenses.filter(
-    (expense) =>
-      monthKey(expense.expense_date) ===
-      currentMonth
-  );
+  const current =
+    getCurrentMonthExpenses(
+      expenses,
+      referenceDate
+    );
 
-  const previous = expenses.filter(
-    (expense) =>
-      monthKey(expense.expense_date) ===
-      previousMonth
-  );
+  const velocity =
+    calculateSpendingVelocity(
+      expenses,
+      referenceDate
+    );
 
-  const currentSpend = total(current);
-  const previousSpend = total(previous);
+  const forecast =
+    calculateCashFlowForecast(
+      expenses,
+      monthlyBudget,
+      referenceDate
+    );
 
-  const budget =
-    Number(monthlyBudget) || 0;
+  const recurring =
+    detectRecurringExpenses(
+      expenses
+    );
 
-  const remaining =
-    budget - currentSpend;
+  const vendors =
+    analyzeVendors(
+      current.map(
+        (expense) => ({
+          id: expense.id,
+          amount:
+            validAmount(
+              expense.amount
+            ),
+          category:
+            expense.category,
+          vendor:
+            expense.vendor,
+          expense_date:
+            expense.expense_date,
+        })
+      )
+    );
 
-  const budgetUsage =
-    budget > 0
-      ? (currentSpend / budget) * 100
-      : null;
+  const concentration =
+    calculateVendorConcentration(
+      vendors
+    );
 
-  const monthChange =
-    previousSpend > 0
-      ? ((currentSpend - previousSpend) /
-          previousSpend) *
-        100
-      : null;
+  const largestExpenses =
+    [...current]
+      .sort(
+        (a, b) =>
+          validAmount(
+            b.amount
+          ) -
+          validAmount(
+            a.amount
+          )
+      )
+      .slice(0, 8)
+      .map(
+        (expense) => ({
+          vendor:
+            expense.vendor,
 
-  const now = new Date();
+          category:
+            expense.category,
 
-  const day = now.getDate();
+          amount:
+            validAmount(
+              expense.amount
+            ),
 
-  const daysInMonth =
-    new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0
-    ).getDate();
+          date:
+            expense.expense_date,
 
-  const dailyBurn =
-    day > 0
-      ? currentSpend / day
-      : 0;
+          paymentMethod:
+            expense.payment_method,
+        })
+      );
 
-  const projected =
-    dailyBurn * daysInMonth;
-
-  const daysUntilBudgetExhaustion =
-    dailyBurn > 0 && remaining > 0
-      ? remaining / dailyBurn
-      : null;
-
-  const largest = [...current]
-    .sort(
-      (a, b) =>
-        Number(b.amount) -
-        Number(a.amount)
-    )
-    .slice(0, 10)
-    .map((expense) => ({
-      vendor: expense.vendor,
-      category: expense.category,
-      amount: Number(expense.amount),
-      date: expense.expense_date,
-      paymentMethod:
-        expense.payment_method,
-    }));
+  const monthlyRecurringCommitment =
+    recurring
+      .filter(
+        (item) =>
+          item.frequency ===
+          "Monthly"
+      )
+      .reduce(
+        (sum, item) =>
+          sum +
+          item.averageAmount,
+        0
+      );
 
   return {
-    currentMonth,
-    previousMonth,
+    currentMonth:
+      `${referenceDate.getFullYear()}-${String(
+        referenceDate.getMonth() + 1
+      ).padStart(2, "0")}`,
 
-    transactionCount: current.length,
+    transactionCount:
+      current.length,
 
-    currentSpend,
-    previousSpend,
+    currentSpend:
+      velocity.currentTotal,
 
-    monthChange,
+    previousMonthSpend:
+      velocity.previousTotal,
 
-    budget,
+    monthChangePercent:
+      velocity.changePercent,
 
-    remainingBudget: remaining,
+    projectedMonthlySpend:
+      velocity.projectedMonthlySpend,
 
-    budgetUsage,
+    dailyBurn:
+      forecast.dailyBurn,
 
-    dailyBurn,
+    projectedMonthEnd:
+      forecast.projectedMonthEnd,
 
-    projectedMonthEnd: projected,
+    projected30DayOutflow:
+      forecast.projected30DayOutflow,
 
-    daysUntilBudgetExhaustion,
+    budget:
+      forecast.budget,
 
-    categories: categories(current),
+    remainingBudget:
+      forecast.remainingBudget,
 
-    vendors: vendors(current),
+    budgetUtilization:
+      forecast.budgetUtilization,
 
-    largestExpenses: largest,
+    projectedOverrun:
+      forecast.projectedOverrun,
+
+    daysUntilBudgetExhaustion:
+      forecast.daysUntilBudgetExhaustion,
+
+    forecastStatus:
+      forecast.forecastStatus,
+
+    categories:
+      categories(current),
+
+    vendors:
+      vendors.slice(0, 10),
+
+    vendorConcentration:
+      concentration,
+
+    recurringExpenses:
+      recurring.slice(0, 10),
+
+    monthlyRecurringCommitment,
+
+    largestExpenses,
   };
 }
 
-function readableHFError(value: unknown) {
-  if (typeof value === "string") {
+function readableHFError(
+  value: unknown
+) {
+  if (
+    typeof value ===
+    "string"
+  ) {
     return value;
   }
 
   if (
     value &&
-    typeof value === "object"
+    typeof value ===
+      "object"
   ) {
     const object =
       value as Record<
@@ -265,13 +370,66 @@ function readableHFError(value: unknown) {
     }
 
     try {
-      return JSON.stringify(value);
+      return JSON.stringify(
+        value
+      );
     } catch {
       return "Unknown Hugging Face error.";
     }
   }
 
   return "Unknown Hugging Face error.";
+}
+
+function sanitizeAnswer(
+  value: string
+) {
+  return value
+    .replace(
+      /\\\[/g,
+      ""
+    )
+    .replace(
+      /\\\]/g,
+      ""
+    )
+    .replace(
+      /\\\(/g,
+      ""
+    )
+    .replace(
+      /\\\)/g,
+      ""
+    )
+    .replace(
+      /\\frac\{([^}]*)\}\{([^}]*)\}/g,
+      "$1 ÷ $2"
+    )
+    .replace(
+      /\\text\{([^}]*)\}/g,
+      "$1"
+    )
+    .replace(
+      /\\times/g,
+      "×"
+    )
+    .replace(
+      /\\approx/g,
+      "≈"
+    )
+    .replace(
+      /\\div/g,
+      "÷"
+    )
+    .replace(
+      /\n{3,}/g,
+      "\n\n"
+    )
+    .replace(
+      /\b(you'?ll|you will|your business will)\s+be\s+bankrupt\b/gi,
+      "your monthly budget will be exhausted"
+    )
+    .trim();
 }
 
 export async function POST(
@@ -312,10 +470,14 @@ export async function POST(
     }
 
     const token =
-      cleanToken(rawToken);
+      cleanToken(
+        rawToken
+      );
 
     const expenses =
-      Array.isArray(body.expenses)
+      Array.isArray(
+        body.expenses
+      )
         ? body.expenses
         : [];
 
@@ -333,115 +495,98 @@ export async function POST(
     const systemPrompt = `
 You are PennyPilot Copilot.
 
-You are an AI financial analyst inside PennyPilot,
-a financial intelligence platform for MSMEs.
+You are the financial intelligence assistant
+inside PennyPilot, a financial analytics platform
+for MSMEs.
 
 BUSINESS:
 ${body.businessName || "Unknown"}
 
-Your job is to answer the user's question using ONLY
-the supplied financial data.
+Your job is to explain the supplied financial data
+accurately and concisely.
 
 ========================
-CORE RULES
+STRICT DATA RULES
 ========================
 
-1. Never invent financial facts.
+1. Use ONLY the supplied financial context.
 
-2. Never invent amounts, vendors, transactions,
-   dates, balances, income, revenue, assets,
-   liabilities, loans, or bank information.
+2. Never invent:
+   - revenue
+   - profit
+   - cash balance
+   - bank balance
+   - assets
+   - liabilities
+   - loans
+   - income
+   - transactions
+   - vendors
+   - dates
+   - amounts
 
-3. Never claim access to a bank account.
+3. Do not claim access to bank accounts.
 
-4. You may perform arithmetic using the supplied data.
+4. You may calculate arithmetic from supplied values.
 
-5. If the available data is insufficient, clearly say so.
+5. If data is insufficient, explicitly say so.
 
-6. Answer the user's actual question first.
+6. Never treat a forecast as a guaranteed outcome.
 
-7. Use Indian Rupees with the ₹ symbol.
+7. Never call the business bankrupt or insolvent
+   based only on expense and budget data.
 
-8. Keep answers concise and easy to read.
+8. Distinguish:
+   - actual spending
+   - projected spending
+   - budget exhaustion
+   - financial insolvency
 
-9. Use short paragraphs or simple bullet points.
+9. Use ₹ for Indian currency.
 
-10. Do NOT use LaTeX.
+10. Keep answers concise.
 
-11. Do NOT use mathematical notation such as:
-    \$begin:math:display$
-    \\\\frac\{\}
-    \\$end:math:display$
-    or other LaTeX commands.
+11. Use short paragraphs or bullets.
 
-12. Do NOT create markdown tables.
+12. Do not use markdown tables.
 
-13. Do NOT wrap calculations in code blocks.
+13. Do not use LaTeX.
 
-14. Write calculations as normal text.
-    Example:
-    ₹125,000 ÷ ₹22,058.82 ≈ 5.7 days
+14. If explaining an increase in spending, identify
+    the actual categories, vendors, or transactions
+    responsible.
 
-15. Do NOT call a business "bankrupt" merely because
-    its monthly budget has been exhausted.
+15. If discussing recurring expenses, clearly describe
+    them as detected patterns rather than guaranteed
+    future charges.
 
-16. The supplied data represents EXPENSES and a
-    MONTHLY BUDGET. It does NOT establish bankruptcy,
-    insolvency, cash balance, assets, liabilities,
-    revenue, profit, or actual bank balance.
-
-17. If the user asks "when will I be bankrupt",
-    explain that bankruptcy cannot be determined
-    from this dataset.
-
-18. If useful, provide the measurable alternative:
-    "At the current spending rate, your monthly
-    budget would be exhausted in approximately X days."
-
-19. Distinguish clearly between:
-    - budget exhaustion
-    - projected spending
-    - actual financial insolvency
-
-20. Never present a budget forecast as a prediction
-    of legal bankruptcy or business failure.
-
-21. If the user asks why spending increased,
-    identify the actual categories, vendors, and
-    transactions responsible.
-
-22. If comparing months, explicitly name both months.
+16. If discussing Watchtower-style unusual spending,
+    call it an unusual spending signal, not fraud.
 
 ========================
-ANSWER STYLE
+FORECAST LANGUAGE
 ========================
 
-Sound like a professional financial copilot.
+Correct:
 
-Good:
+"At the current spending pace, PennyPilot projects
+approximately ₹85,000 in month-end spending."
 
-"Your current monthly budget is ₹5,00,000 and
-you've spent ₹3,75,000.
+Correct:
 
-At your current daily burn of about ₹22,059,
-the remaining ₹1,25,000 budget would last
-approximately 5.7 days.
+"Your remaining monthly budget would last about
+6 days at the current daily burn."
 
-This does not mean the business will become
-bankrupt in 6 days. We only have expense and
-budget data, not cash balance, revenue,
-assets, or liabilities."
+Incorrect:
 
-Bad:
+"You will run out of money in 6 days."
 
-"\$begin:math:display$
-\\\\frac\{125000\}\{22058\.82\}
-\\\\approx 5\.7
-\\$end:math:display$"
+Incorrect:
 
-Bad:
+"You will become bankrupt in 6 days."
 
-"You will be bankrupt in 6 days."
+The dataset contains expenses and a monthly budget.
+It does not establish insolvency.
 
 ========================
 FINANCIAL CONTEXT
@@ -464,8 +609,10 @@ ${JSON.stringify(
               (message) =>
                 message &&
                 (
-                  message.role === "user" ||
-                  message.role === "assistant"
+                  message.role ===
+                    "user" ||
+                  message.role ===
+                    "assistant"
                 ) &&
                 typeof message.content ===
                   "string"
@@ -475,89 +622,90 @@ ${JSON.stringify(
     const messages = [
       {
         role: "system" as const,
-        content: systemPrompt,
+        content:
+          systemPrompt,
       },
 
       ...history,
 
       {
         role: "user" as const,
-        content: question,
+        content:
+          question,
       },
     ];
 
-    console.log(
-      "PennyPilot Copilot → Hugging Face"
-    );
-
-    console.log(
-      "Model:",
-      HF_MODEL
-    );
-
     const response =
-      await fetch(HF_URL, {
-        method: "POST",
+      await fetch(
+        HF_URL,
+        {
+          method: "POST",
 
-        headers: {
-          Authorization:
-            `Bearer ${token}`,
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
 
-          "Content-Type":
-            "application/json",
+            "Content-Type":
+              "application/json",
 
-          Accept:
-            "application/json",
-        },
+            Accept:
+              "application/json",
+          },
 
-        body: JSON.stringify({
-          model: HF_MODEL,
+          body: JSON.stringify({
+            model:
+              HF_MODEL,
 
-          messages,
+            messages,
 
-          temperature: 0.2,
+            temperature: 0.2,
 
-          max_tokens: 600,
+            max_tokens: 700,
 
-          stream: false,
-        }),
+            stream: false,
+          }),
 
-        cache: "no-store",
-      });
+          cache:
+            "no-store",
+        }
+      );
 
     const raw =
       await response.text();
 
-    let data: any = null;
+    let data: any =
+      null;
 
     try {
-      data = JSON.parse(raw);
+      data =
+        JSON.parse(
+          raw
+        );
     } catch {
       data = null;
     }
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
       console.error(
-        "HF STATUS:",
+        "Hugging Face status:",
         response.status
       );
 
       console.error(
-        "HF BODY:",
+        "Hugging Face body:",
         raw
       );
-
-      const detail =
-        readableHFError(
-          data?.error ??
-            data?.message ??
-            raw
-        );
 
       return NextResponse.json(
         {
           error:
-            `Hugging Face ${response.status}: ${detail}`,
+            `Hugging Face ${response.status}: ${readableHFError(
+              data?.error ??
+                data?.message ??
+                raw
+            )}`,
         },
         {
           status: 502,
@@ -567,17 +715,14 @@ ${JSON.stringify(
 
     let answer =
       data?.choices?.[0]
-        ?.message?.content;
+        ?.message
+        ?.content;
 
     if (
-      typeof answer !== "string" ||
+      typeof answer !==
+        "string" ||
       !answer.trim()
     ) {
-      console.error(
-        "HF returned invalid response:",
-        raw
-      );
-
       return NextResponse.json(
         {
           error:
@@ -589,40 +734,16 @@ ${JSON.stringify(
       );
     }
 
-    /*
-     * Safety cleanup.
-     *
-     * The model is instructed not to use LaTeX,
-     * but this prevents ugly raw LaTeX from ever
-     * reaching the UI if the model ignores that rule.
-     */
-
-    answer = answer
-      .replace(/\\\[/g, "")
-      .replace(/\\\]/g, "")
-      .replace(/\\\(/g, "")
-      .replace(/\\\)/g, "")
-      .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "$1 ÷ $2")
-      .replace(/\\text\{([^}]*)\}/g, "$1")
-      .replace(/\\times/g, "×")
-      .replace(/\\approx/g, "≈")
-      .replace(/\\div/g, "÷")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    /*
-     * Prevent the AI from presenting budget exhaustion
-     * as confirmed bankruptcy.
-     */
-    answer = answer.replace(
-      /\b(you'?ll|you will|your business will)\s+be\s+bankrupt\b/gi,
-      "your monthly budget will be exhausted"
-    );
+    answer =
+      sanitizeAnswer(
+        answer
+      );
 
     return NextResponse.json({
       answer,
 
-      model: HF_MODEL,
+      model:
+        HF_MODEL,
 
       stats: {
         currentSpend:
@@ -636,6 +757,15 @@ ${JSON.stringify(
 
         transactionCount:
           financialContext.transactionCount,
+
+        recurringItems:
+          financialContext
+            .recurringExpenses
+            .length,
+
+        forecastStatus:
+          financialContext
+            .forecastStatus,
       },
     });
   } catch (error) {

@@ -16,15 +16,33 @@ type Props = {
 };
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat(
+    "en-IN",
+    {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }
+  ).format(value);
 }
 
-function formatDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(
+function formatDate(
+  date: string
+) {
+  const parsed =
+    new Date(
+      `${date}T00:00:00`
+    );
+
+  if (
+    Number.isNaN(
+      parsed.getTime()
+    )
+  ) {
+    return "—";
+  }
+
+  return parsed.toLocaleDateString(
     "en-IN",
     {
       day: "numeric",
@@ -37,14 +55,32 @@ function formatDate(date: string) {
 export default function RecurringExpenses({
   expenses,
 }: Props) {
-  const recurring = detectRecurringExpenses(expenses);
-
-  const monthlyCommitment = recurring
-    .filter((item) => item.frequency === "Monthly")
-    .reduce(
-      (sum, item) => sum + item.averageAmount,
-      0
+  const recurring =
+    detectRecurringExpenses(
+      expenses
     );
+
+  const monthlyCommitment =
+    recurring
+      .filter(
+        (item) =>
+          item.frequency ===
+          "Monthly"
+      )
+      .reduce(
+        (sum, item) =>
+          sum +
+          item.averageAmount,
+        0
+      );
+
+  const upcomingCount =
+    recurring.filter(
+      (item) =>
+        Boolean(
+          item.nextExpectedDate
+        )
+    ).length;
 
   if (!recurring.length) {
     return (
@@ -55,12 +91,13 @@ export default function RecurringExpenses({
               FINANCIAL INTELLIGENCE
             </div>
 
-            <h2>Recurring expenses</h2>
+            <h2>
+              Recurring expenses
+            </h2>
 
             <p>
-              PennyPilot will identify repeated business
-              expenses as more transaction history is
-              collected.
+              PennyPilot identifies repeated business
+              expenses from your transaction history.
             </p>
           </div>
 
@@ -72,9 +109,17 @@ export default function RecurringExpenses({
         <div className="intelligence-empty">
           <CalendarClock size={20} />
 
-          <span>
-            No recurring pattern detected yet.
-          </span>
+          <div>
+            <strong>
+              No recurring pattern detected yet.
+            </strong>
+
+            <p>
+              At least three consistent transactions are
+              needed before PennyPilot treats a pattern as
+              recurring.
+            </p>
+          </div>
         </div>
       </section>
     );
@@ -88,7 +133,9 @@ export default function RecurringExpenses({
             FINANCIAL INTELLIGENCE
           </div>
 
-          <h2>Recurring expenses</h2>
+          <h2>
+            Recurring expenses
+          </h2>
 
           <p>
             Repeated spending patterns detected from your
@@ -103,59 +150,84 @@ export default function RecurringExpenses({
 
       <div className="recurring-summary">
         <div>
-          <span>Recurring items</span>
-          <strong>{recurring.length}</strong>
-        </div>
+          <span>
+            Recurring items
+          </span>
 
-        <div>
-          <span>Monthly commitment</span>
-          <strong>{money(monthlyCommitment)}</strong>
-        </div>
-
-        <div>
-          <span>Upcoming</span>
           <strong>
-            {recurring.filter(
-              (item) => item.nextExpectedDate
-            ).length}
+            {recurring.length}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Monthly commitment
+          </span>
+
+          <strong>
+            {money(
+              monthlyCommitment
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Upcoming
+          </span>
+
+          <strong>
+            {upcomingCount}
           </strong>
         </div>
       </div>
 
       <div className="recurring-list">
-        {recurring.map((item) => (
-          <div
-            className="recurring-row"
-            key={`${item.vendor}-${item.category}`}
-          >
-            <div className="recurring-main">
-              <div className="recurring-vendor">
-                {item.vendor}
+        {recurring.map(
+          (item) => (
+            <div
+              className="recurring-row"
+              key={`${item.vendor}-${item.category}`}
+            >
+              <div className="recurring-main">
+                <div className="recurring-vendor">
+                  {item.vendor}
+                </div>
+
+                <div className="recurring-meta">
+                  {item.category}
+                  {" · "}
+                  {item.frequency}
+                  {" · "}
+                  {item.occurrences}
+                  {" occurrences"}
+                </div>
               </div>
 
-              <div className="recurring-meta">
-                {item.category} · {item.frequency} ·{" "}
-                {item.occurrences} occurrences
+              <div className="recurring-amount">
+                <strong>
+                  {money(
+                    item.averageAmount
+                  )}
+                </strong>
+
+                <span>
+                  {item.nextExpectedDate
+                    ? `next ${formatDate(
+                        item.nextExpectedDate
+                      )}`
+                    : "next date unavailable"}
+                </span>
+              </div>
+
+              <div className="recurring-confidence">
+                <TrendingUp size={14} />
+
+                {item.confidence}%
               </div>
             </div>
-
-            <div className="recurring-amount">
-              <strong>
-                {money(item.averageAmount)}
-              </strong>
-
-              <span>
-                next {formatDate(item.nextExpectedDate)}
-              </span>
-            </div>
-
-            <div className="recurring-confidence">
-              <TrendingUp size={14} />
-
-              {item.confidence}%
-            </div>
-          </div>
-        ))}
+          )
+        )}
       </div>
     </section>
   );
