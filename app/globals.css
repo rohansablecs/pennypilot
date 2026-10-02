@@ -177,104 +177,6 @@
 
 
 /* =========================================================
-   DARK MODE
-========================================================= */
-
-html:not(.light) {
-  color-scheme: dark;
-
-  --bg: #0d0a15;
-  --bg-2: #120e1d;
-  --bg-3: #191326;
-
-  --canvas-glow:
-    radial-gradient(
-      900px 520px at 80% -10%,
-      rgba(104, 71, 245, 0.20),
-      transparent 70%
-    ),
-    radial-gradient(
-      700px 500px at 0% 100%,
-      rgba(139, 98, 255, 0.10),
-      transparent 70%
-    );
-
-  --surface: #17131f;
-  --surface-2: #1c1726;
-  --surface-3: #211b2d;
-  --surface-hover: #282035;
-
-  --sidebar: rgba(18, 14, 27, 0.92);
-
-  --input: #120f19;
-
-  --accent: #896dff;
-  --accent-2: #a58cff;
-  --accent-3: #c0aaff;
-
-  --accent-dark: #a18cff;
-  --accent-deep: #7757ed;
-
-  --accent-soft: #251d3d;
-  --accent-soft-2: #1d172e;
-
-  --accent-border: #46366e;
-
-  --text: #f8f5ff;
-  --text-2: #eee9f8;
-  --text-secondary: #d5cfe3;
-  --text-muted: #a29bad;
-  --text-faint: #777083;
-  --text-ghost: #565060;
-
-  --border: #2b2437;
-  --border-2: #231d2d;
-  --border-strong: #40364f;
-
-  --positive: #4bd296;
-  --positive-2: #6de0aa;
-  --positive-bg: #10251b;
-  --positive-border: #24523c;
-
-  --warning: #edb85e;
-  --warning-2: #f5ca7d;
-  --warning-bg: #281d0e;
-  --warning-border: #58401e;
-
-  --danger: #f4778c;
-  --danger-2: #ff95a6;
-  --danger-bg: #2c141b;
-  --danger-border: #5c2934;
-
-  --blue: #70a5ff;
-  --blue-bg: #101f37;
-  --blue-border: #284b7d;
-
-  --chart: #9278ff;
-  --chart-2: #b19eff;
-  --chart-3: #c6b8ff;
-  --chart-4: #463b68;
-
-  --chart-grid: #2b2535;
-
-  --shadow-xs:
-    0 2px 8px rgba(0, 0, 0, 0.20);
-
-  --shadow-sm:
-    0 10px 30px rgba(0, 0, 0, 0.25);
-
-  --shadow:
-    0 18px 52px rgba(0, 0, 0, 0.32);
-
-  --shadow-lg:
-    0 30px 90px rgba(0, 0, 0, 0.42);
-
-  --shadow-purple:
-    0 18px 45px rgba(104, 71, 245, 0.22);
-}
-
-
-/* =========================================================
    RESET
 ========================================================= */
 
@@ -465,17 +367,6 @@ p {
   z-index: 50;
 }
 
-html:not(.light) .sidebar,
-html:not(.light) .app-shell > aside {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(19,15,29,0.98),
-      rgba(15,11,24,0.96)
-    );
-}
-
-
 /* =========================================================
    BRAND
 ========================================================= */
@@ -616,12 +507,6 @@ html:not(.light) .app-shell > aside {
     0 5px 18px rgba(104, 71, 245, 0.07);
 }
 
-html:not(.light) .nav-item.active,
-html:not(.light) .sidebar nav button.active,
-html:not(.light) .sidebar > nav a.active {
-  color: #c0b1ff;
-}
-
 .nav-item svg,
 .sidebar nav button svg,
 .sidebar > nav a svg,
@@ -644,59 +529,6 @@ html:not(.light) .sidebar > nav a.active {
 
   border-top: 1px solid var(--border);
 }
-
-.theme-toggle,
-.sidebar-bottom > button {
-  width: 100%;
-  min-height: 43px;
-
-  padding: 7px 9px;
-
-  display: flex;
-  align-items: center;
-
-  gap: 9px;
-
-  border: 1px solid var(--border);
-  border-radius: 12px;
-
-  background: var(--surface);
-
-  color: var(--text-muted);
-
-  font-size: 12px;
-
-  box-shadow: var(--shadow-xs);
-
-  transition: 160ms ease;
-}
-
-.theme-toggle:hover,
-.sidebar-bottom > button:hover {
-  background: var(--surface-hover);
-  border-color: var(--accent-border);
-  color: var(--text);
-}
-
-.theme-toggle-icon {
-  width: 29px;
-  height: 29px;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 9px;
-
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.theme-toggle-state {
-  margin-left: auto;
-  color: var(--text-faint);
-  font-size: 10px;
-}
-
 
 /* =========================================================
    WORKSPACE
@@ -1235,10 +1067,6 @@ html:not(.light) .sidebar > nav a.active {
     0 8px 18px rgba(104, 71, 245, 0.12);
 }
 
-html:not(.light) .stat-icon {
-  background: var(--accent-soft);
-}
-
 .stat-icon svg {
   width: 19px;
   height: 19px;
@@ -1586,20 +1414,6 @@ html:not(.light) .stat-icon {
     0 16px 45px rgba(84, 55, 173, 0.10);
 }
 
-html:not(.light) .budget-panel {
-  background:
-    radial-gradient(
-      circle at 90% 15%,
-      rgba(127, 94, 255, 0.20),
-      transparent 27%
-    ),
-    linear-gradient(
-      135deg,
-      #1b1627,
-      #241b35
-    );
-}
-
 .budget-panel::before {
   content: "";
 
@@ -1874,11 +1688,6 @@ html:not(.light) .budget-panel {
   box-shadow: var(--shadow-lg) !important;
 
   backdrop-filter: blur(12px);
-}
-
-html:not(.light) .recharts-default-tooltip {
-  background:
-    rgba(25, 20, 34, 0.96) !important;
 }
 
 .recharts-tooltip-label {
@@ -2328,10 +2137,6 @@ td strong {
   font-weight: 700;
 }
 
-html:not(.light) .category-pill {
-  color: #c1b4ff;
-}
-
 .delete-button {
   width: 34px;
   height: 34px;
@@ -2410,20 +2215,6 @@ html:not(.light) .category-pill {
     0 20px 55px rgba(75, 46, 156, 0.10);
 }
 
-html:not(.light) .analytics-intro {
-  background:
-    radial-gradient(
-      circle at 83% 25%,
-      rgba(125, 91, 255, 0.28),
-      transparent 27%
-    ),
-    linear-gradient(
-      130deg,
-      #1b1628,
-      #251b39
-    );
-}
-
 .analytics-intro::before {
   content: "";
 
@@ -2489,10 +2280,6 @@ html:not(.light) .analytics-intro {
   backdrop-filter: blur(10px);
 
   text-align: right;
-}
-
-html:not(.light) .analytics-total {
-  background: rgba(18, 14, 27, 0.46);
 }
 
 .analytics-total span {
@@ -3664,11 +3451,6 @@ html:not(.light) .analytics-total {
   animation: fade-in 150ms ease;
 }
 
-html:not(.light) .modal-overlay {
-  background:
-    rgba(4, 2, 9, 0.78);
-}
-
 .modal {
   width: min(560px, 100%);
 
@@ -4723,15 +4505,6 @@ nextjs-portal {
   background: #aaa1be;
 }
 
-html:not(.light) ::-webkit-scrollbar-thumb {
-  background: #40374e;
-}
-
-html:not(.light) ::-webkit-scrollbar-thumb:hover {
-  background: #564b67;
-}
-
-
 /* =========================================================
    1200
 ========================================================= */
@@ -5414,12 +5187,6 @@ svg.recharts-surface path {
 
   font-size: 13px;
   font-weight: 600;
-}
-
-html:not(.light) .global-action-error {
-  background: rgba(110, 36, 45, 0.18);
-  border-color: rgba(239, 108, 118, 0.2);
-  color: #ffb0b7;
 }
 
 .global-action-error span {
@@ -7876,71 +7643,6 @@ html:not(.light) .global-action-error {
     );
 }
 
-html:not(.light) {
-  --bg: #100914;
-  --bg-2: #160b1e;
-  --bg-3: #21112c;
-
-  --canvas-glow:
-    radial-gradient(
-      900px 600px at 12% 12%,
-      rgba(170, 66, 232, 0.20),
-      transparent 66%
-    ),
-    radial-gradient(
-      900px 650px at 90% 5%,
-      rgba(111, 30, 170, 0.20),
-      transparent 66%
-    ),
-    radial-gradient(
-      760px 620px at 55% 110%,
-      rgba(154, 73, 205, 0.13),
-      transparent 67%
-    );
-
-  --surface: rgba(29, 16, 38, 0.70);
-  --surface-2: rgba(35, 18, 46, 0.62);
-  --surface-3: rgba(41, 21, 53, 0.70);
-  --surface-hover: rgba(57, 28, 71, 0.76);
-
-  --sidebar: rgba(20, 10, 27, 0.68);
-  --input: rgba(20, 10, 27, 0.55);
-
-  --text: #fbf7fd;
-  --text-2: #f1e9f5;
-  --text-secondary: #d8c9df;
-  --text-muted: #aa99b1;
-  --text-faint: #7e6e86;
-  --text-ghost: #5d4d64;
-
-  --border: rgba(235, 206, 247, 0.10);
-  --border-2: rgba(235, 206, 247, 0.065);
-  --border-strong: rgba(224, 175, 245, 0.18);
-
-  --accent: #b75bed;
-  --accent-2: #ce7af5;
-  --accent-3: #dfa0fa;
-  --accent-dark: #cf78f1;
-  --accent-deep: #a33bd0;
-
-  --accent-soft: rgba(158, 56, 205, 0.16);
-  --accent-soft-2: rgba(158, 56, 205, 0.09);
-  --accent-border: rgba(202, 120, 237, 0.24);
-
-  --chart: #b85be8;
-  --chart-2: #ce82ef;
-  --chart-3: #dda4f3;
-  --chart-4: #563665;
-  --chart-grid: rgba(227, 191, 241, 0.10);
-
-  --shadow-xs: 0 4px 14px rgba(0, 0, 0, 0.20);
-  --shadow-sm: 0 12px 35px rgba(0, 0, 0, 0.25);
-  --shadow: 0 20px 60px rgba(0, 0, 0, 0.31);
-  --shadow-lg: 0 35px 100px rgba(0, 0, 0, 0.43);
-  --shadow-purple: 0 18px 55px rgba(155, 45, 205, 0.22);
-}
-
-
 /* ========================================================================
    02. RASTER ATMOSPHERE
 ======================================================================== */
@@ -7973,11 +7675,6 @@ body::before {
     url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
 
   mix-blend-mode: multiply;
-}
-
-html:not(.light) body::before {
-  opacity: 0.045;
-  mix-blend-mode: screen;
 }
 
 body::after {
@@ -8076,38 +7773,6 @@ body::after {
   -webkit-backdrop-filter: var(--pp-blur);
 }
 
-html:not(.light) .panel,
-html:not(.light) .stat-card,
-html:not(.light) .insight-card,
-html:not(.light) .insight-title,
-html:not(.light) .vendor-card,
-html:not(.light) .table-wrapper,
-html:not(.light) .recurring-summary,
-html:not(.light) .vendor-summary,
-html:not(.light) .intelligence-card,
-html:not(.light) .cashflow-card,
-html:not(.light) .watchtower-card,
-html:not(.light) .vendor-intelligence-card,
-html:not(.light) .modal,
-html:not(.light) .auth-card,
-html:not(.light) .enterprise-option,
-html:not(.light) .receipt-modal,
-html:not(.light) .login-container-inner {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(42, 21, 54, 0.74),
-      rgba(24, 12, 32, 0.60)
-    ) !important;
-
-  border-color: rgba(231, 197, 243, 0.105) !important;
-
-  box-shadow:
-    0 22px 65px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
-}
-
-
 /* ========================================================================
    04. SIDEBAR — FROSTED PURPLE GLASS
 ======================================================================== */
@@ -8129,18 +7794,6 @@ html:not(.light) .login-container-inner {
 
   backdrop-filter: blur(28px) saturate(145%) !important;
   -webkit-backdrop-filter: blur(28px) saturate(145%) !important;
-}
-
-html:not(.light) .sidebar,
-html:not(.light) .app-shell > aside {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(28, 14, 37, 0.72),
-      rgba(17, 8, 24, 0.62)
-    ) !important;
-
-  border-right-color: rgba(230, 192, 243, 0.08) !important;
 }
 
 .brand {
@@ -8222,25 +7875,6 @@ html:not(.light) .app-shell > aside {
     inset 3px 0 0 var(--accent),
     0 7px 24px rgba(112, 35, 153, 0.07) !important;
 }
-
-.theme-toggle,
-.sidebar-bottom > button {
-  background:
-    rgba(255, 255, 255, 0.46) !important;
-
-  border-color: rgba(78, 37, 97, 0.10) !important;
-
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.theme-toggle-icon {
-  background:
-    rgba(157, 55, 211, 0.12) !important;
-
-  color: var(--accent) !important;
-}
-
 
 /* ========================================================================
    05. MAIN CONTENT / TOPBAR
@@ -9997,59 +9631,6 @@ tbody tr:hover {
    DARK MODE AUTH
 ------------------------------------------------------------------------ */
 
-html:not(.light) .login-brand {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(34,17,43,0.58),
-      rgba(20,9,27,0.38)
-    ) !important;
-
-  border-right-color:
-    rgba(229,192,242,0.07) !important;
-}
-
-html:not(.light) .login-logo {
-  background:
-    radial-gradient(
-      circle at 35% 25%,
-      rgba(255,255,255,0.18),
-      rgba(91,34,119,0.30) 55%,
-      rgba(37,12,49,0.48)
-    ) !important;
-
-  border-color:
-    rgba(231,196,244,0.14) !important;
-}
-
-html:not(.light) .auth-card {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(43,21,55,0.76),
-      rgba(23,11,30,0.68)
-    ) !important;
-
-  border-color:
-    rgba(231,197,243,0.10) !important;
-}
-
-html:not(.light) .enterprise-option {
-  background:
-    rgba(45,22,56,0.44) !important;
-}
-
-html:not(.light) .enterprise-option:hover,
-html:not(.light) .enterprise-option.selected {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(110,39,142,0.30),
-      rgba(72,24,95,0.22)
-    ) !important;
-}
-
-
 /* ------------------------------------------------------------------------
    END AUTH POLISH
 ------------------------------------------------------------------------ */
@@ -10840,16 +10421,6 @@ html.light .login-logo img {
 }
 
 /* Override dark-theme variables only inside auth */
-html:not(.light) .login-page {
-  --bg: #faf8ff !important;
-  --surface: rgba(255, 255, 255, 0.78) !important;
-  --surface-strong: rgba(255, 255, 255, 0.92) !important;
-  --text: #17111f !important;
-  --muted: #756d80 !important;
-  --border: rgba(101, 45, 143, 0.12) !important;
-  --accent: #7434d8 !important;
-}
-
 /* =========================================================
    LOGO — NO BOX, NO GLASS, NO BORDER
    ========================================================= */
@@ -11075,20 +10646,7 @@ html:not(.light) .login-page {
    visually turning the authentication screen dark.
    ========================================================= */
 
-html:not(.light) .login-page,
-html:not(.light) .login-page * {
-  --auth-text: #18121f;
-}
-
 /* Auth logo must NEVER inherit dark-mode treatment */
-html:not(.light) .login-logo,
-html:not(.light) .login-logo img {
-  background: transparent !important;
-  box-shadow: none !important;
-  border: 0 !important;
-  filter: none !important;
-}
-
 /* =========================================================
    RESPONSIVE LOGO
    ========================================================= */
@@ -11098,5 +10656,129 @@ html:not(.light) .login-logo img {
   .login-logo img {
     width: 64px !important;
     height: 64px !important;
+  }
+}
+
+
+/* =========================================================
+   PENNYPILOT BRAND MARK — LARGE / CLEAN / NO BOX
+========================================================= */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 76px;
+}
+
+.brand-mark {
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  min-height: 72px !important;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+
+  overflow: visible !important;
+}
+
+.brand-mark img {
+  width: 68px !important;
+  height: 68px !important;
+
+  display: block;
+  object-fit: contain;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+
+  mix-blend-mode: normal;
+}
+
+.brand > span:last-child {
+  font-size: 27px !important;
+  line-height: 1 !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.045em;
+}
+
+/* Auth / landing brand */
+.login-brand .login-logo,
+.login-brand img {
+  width: 76px !important;
+  height: 76px !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+
+  object-fit: contain;
+}
+
+/* Loading logo */
+.loading-logo {
+  width: 76px !important;
+  height: 76px !important;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.loading-logo img {
+  width: 72px !important;
+  height: 72px !important;
+
+  display: block;
+  object-fit: contain;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Keep the larger mark sensible on smaller screens */
+@media (max-width: 700px) {
+  .brand {
+    gap: 12px;
+  }
+
+  .brand-mark {
+    width: 58px !important;
+    height: 58px !important;
+    min-width: 58px !important;
+    min-height: 58px !important;
+  }
+
+  .brand-mark img {
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  .brand > span:last-child {
+    font-size: 23px !important;
   }
 }

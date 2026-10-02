@@ -18,12 +18,10 @@ import {
   Filter,
   LayoutDashboard,
   LogOut,
-  Moon,
   Plus,
   Receipt,
   Search,
   ShieldAlert,
-  Sun,
   TrendingUp,
   Wallet,
   X,
@@ -89,7 +87,6 @@ type Business = {
   monthly_budget: number | null;
 };
 
-type Theme = "dark" | "light";
 
 type Insight = {
   icon: string;
@@ -271,50 +268,7 @@ export default function Dashboard({
   const [actionError, setActionError] =
     useState("");
 
-  const [theme, setTheme] =
-    useState<Theme>("dark");
 
-  /* =========================================================
-     THEME
-  ========================================================= */
-
-  useEffect(() => {
-    const saved =
-      localStorage.getItem(
-        "pennypilot-theme"
-      ) as Theme | null;
-
-    const nextTheme =
-      saved === "light"
-        ? "light"
-        : "dark";
-
-    setTheme(nextTheme);
-
-    document.documentElement.classList.toggle(
-      "light",
-      nextTheme === "light"
-    );
-  }, []);
-
-  const toggleTheme = () => {
-    const nextTheme =
-      theme === "dark"
-        ? "light"
-        : "dark";
-
-    setTheme(nextTheme);
-
-    localStorage.setItem(
-      "pennypilot-theme",
-      nextTheme
-    );
-
-    document.documentElement.classList.toggle(
-      "light",
-      nextTheme === "light"
-    );
-  };
 
   /* =========================================================
      DATA
@@ -1617,48 +1571,7 @@ export default function Dashboard({
         </div>
 
         <div className="sidebar-bottom">
-
-          <button
-            className="theme-toggle"
-            onClick={
-              toggleTheme
-            }
-            title={
-              theme ===
-              "dark"
-                ? "Switch to light mode"
-                : "Switch to dark mode"
-            }
-          >
-            <span className="theme-toggle-icon">
-              {theme ===
-              "dark" ? (
-                <Sun
-                  size={14}
-                />
-              ) : (
-                <Moon
-                  size={14}
-                />
-              )}
-            </span>
-
-            <span>
-              {theme ===
-              "dark"
-                ? "Light mode"
-                : "Dark mode"}
-            </span>
-
-            <span className="theme-toggle-state">
-              {theme ===
-              "dark"
-                ? "☼"
-                : "☾"}
-            </span>
-          </button>
-
-          <div className="enterprise-mini">
+<div className="enterprise-mini">
 
             <span>
               🏢
